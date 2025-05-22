@@ -10,7 +10,7 @@ youtube-transcript-api = "^1.0.3"
 requests = "^2.32"
 
 [tool.poetry.scripts]
-yt-summarizer = "yt_summarizer.pipeline:cli"
+yt-summarizer = "yt_summarizer.cli:main"
 
 [build-system]
 requires = ["poetry-core"]

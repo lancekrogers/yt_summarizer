@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "yt-summarizer"
+version = "0.1.0"
+description = "Batch grabs YouTube transcripts and summarizes them with Ollama"
+authors = ["Lance"]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<3.14"
+youtube-transcript-api = "^1.0.3"
+requests = "^2.32"
+
+[tool.poetry.scripts]
+yt-summarizer = "yt_summarizer.pipeline:cli"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

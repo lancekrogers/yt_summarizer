@@ -1,0 +1,7 @@
+poetry.lock
+.envrc
+.direnv/
+test_videos.txt
+data/*
+logs/*
+*__pycache__*

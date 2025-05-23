@@ -8,6 +8,18 @@ authors = ["Lance"]
 python = ">=3.11,<3.14"
 youtube-transcript-api = "^1.0.3"
 requests = "^2.32"
+ollama = "^0.3.0"
+questionary = "^2.0.0"
+yaspin = "^3.0.0"
+python-dotenv = "^1.0.0"
+python-slugify = "^8.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.4"
+pytest-cov = "^6.0.0"
+pytest-mock = "^3.14.0"
+black = "^24.10.0"
+mypy = "^1.13.0"
 
 [tool.poetry.scripts]
 yt-summarizer = "yt_summarizer.cli:main"

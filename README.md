@@ -51,7 +51,10 @@ ollama pull llama3:8b
 # fire up the Ollama server in a separate terminal
 ollama serve         # listens on  http://localhost:11434
 
-# run the pipeline on a list of video IDs / URLs
+# run the tool (interactive mode recommended)
+poetry run yt-summarizer
+
+# or use legacy mode with file
 echo "dQw4w9WgXcQ" > ids.txt
 poetry run yt-summarizer ids.txt --model llama3:8b
 ```
@@ -65,6 +68,32 @@ data/
  └─ corpus/dQw4w9WgXcQ.md        # nicely formatted summary
 logs/ingest.jsonl               # run log
 ```
+
+---
+
+## 🎯 Ergonomic Usage
+
+For more convenient usage in the project directory:
+
+**Option 1: Use the run script**
+```bash
+./run                    # Interactive mode
+./run videos.txt         # Legacy mode with file
+```
+
+**Option 2: Shell alias (global)**
+```bash
+# Add to ~/.zshrc or ~/.bashrc:
+alias yts="cd /path/to/youtube-summarizer && poetry run yt-summarizer"
+```
+
+**Recommended: Use the run script** - it's simple and always works!
+
+The interactive mode provides a user-friendly menu system that guides you through:
+- Choosing input source (default file / custom file / single URL)
+- Model selection
+- File conflict handling
+- Post-run actions (summarize more / clean cache / quit)
 
 ---
 

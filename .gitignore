@@ -3,5 +3,8 @@ poetry.lock
 .direnv/
 test_videos.txt
 data/*
+docs/*
 logs/*
 *__pycache__*
+videolist.txt
+.claude/

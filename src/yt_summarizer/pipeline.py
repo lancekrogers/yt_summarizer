@@ -1,185 +1,342 @@
-#!/usr/bin/env python3
 """
-pipeline.py
-===========
+End-to-end processing pipeline for YouTube video summarization.
 
-End‑to‑end pipeline:
-
-1. **Reads** a text file of YouTube URLs/IDs (one per line).
-2. **Fetches** the *full caption text* for each video (prefers manual → auto).
-3. **Stores** that plain‑text transcript under **data/**  (one `.txt` per video).
-4. **Chunks and summarises** the transcript with a local **Ollama** model
-   (`llama3.2:latest` by default).
-5. **Writes** a Markdown summary document to **docs/**.
-
-Run::
-
-    poetry run yt_summarizer videos.txt
+Orchestrates the entire process from video URL to markdown summary.
 """
 
 from __future__ import annotations
 
-import argparse
-import json
-import re
-import textwrap
-import time
+import logging
 from pathlib import Path
-from typing import Iterable, List
+from typing import NamedTuple
 
-import requests
-from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
+from yaspin import yaspin
 
-# ---------------------------------------------------------------------------- #
-# Paths
-# ---------------------------------------------------------------------------- #
-DATA_DIR = Path("data/raw")  # full transcript .txt files
-DOCS_DIR = Path("data/docs/")  # markdown summaries
-LOG_FILE = Path("data/logs/ingest.jsonl")
-
-# ---------------------------------------------------------------------------- #
-# LLM configuration
-# ---------------------------------------------------------------------------- #
-OLLAMA_URL = "http://localhost:11434/api/generate"
-DEFAULT_MODEL = "llama3.2:latest"
-TOKENS_PER_CHUNK = 2048
-
-# CHUNK_PROMPT_TEMPLATE = (
-#     "You are a precise research assistant. Summarize the following transcript "
-#     "chunk in <=150 words, focusing on key facts and arguments.\n\n{chunk}\n"
-# )
-CHUNK_PROMPT_TEMPLATE = (
-    "You are a precise research assistant. Your goal is to extract the"
-    "prompts discussed in this transcript"
-    "chunk, focusing on specific mentions of prompts the writer finds helpful.\n\n{chunk}\n"
+from .config import config
+from .llm import LLMConnectionError, LLMError, ensure_connection, summarise_chunk, summarise_transcript
+from .transcript import (
+    TranscriptData,
+    TranscriptError,
+    NoTranscriptAvailable,
+    extract_video_id,
+    fetch_transcript,
+    chunk_text
 )
+from .utils import save_markdown, log_ingest, slugify, get_available_version
+
+logger = logging.getLogger(__name__)
 
 
-FINAL_PROMPT_TEMPLATE = (
-    "Combine these chunk summaries into a concise executive overview:"
-    "\n\n{bullet_summaries}"
-)
-
-# ---------------------------------------------------------------------------- #
-# Helpers
-# ---------------------------------------------------------------------------- #
-_VIDEO_ID_RE = re.compile(r"(?:watch\?v=|youtu\.be/|embed/)([\w\-]{11})")
-
-
-def extract_video_id(url_or_id: str) -> str:
-    match = _VIDEO_ID_RE.search(url_or_id)
-    return match.group(1) if match else url_or_id.strip()
+class ProcessingResult(NamedTuple):
+    """Result of processing a single video."""
+    video_id: str
+    title: str
+    slug: str
+    success: bool
+    chunk_count: int
+    error: str | None = None
+    output_path: Path | None = None
 
 
-def fetch_transcript_text(video_id: str) -> str:
+class ProcessingStats(NamedTuple):
+    """Statistics for a batch processing run."""
+    total_videos: int
+    successful: int
+    failed: int
+    skipped: int
+
+
+def process_single_video(
+    url_or_id: str,
+    model: str | None = None,
+    use_cache: bool = True,
+    auto_overwrite: bool = False
+) -> ProcessingResult:
     """
-    Return *plain text* transcript for `video_id`, using cache in data/.
+    Process a single video from URL/ID to markdown summary.
+    
+    Args:
+        url_or_id: YouTube URL or video ID.
+        model: LLM model to use, defaults to config.OLLAMA_MODEL.
+        use_cache: Whether to use cached transcripts.
+        auto_overwrite: Whether to overwrite existing files automatically.
+        
+    Returns:
+        ProcessingResult with outcome details.
     """
-    DATA_DIR.mkdir(parents=True, exist_ok=True)
-    cache_path = DATA_DIR / f"{video_id}.txt"
-    if cache_path.exists():
-        return cache_path.read_text()
-
-    raw_snippets = YouTubeTranscriptApi().fetch(video_id).to_raw_data()
-    full_text = "\n".join(snippet["text"] for snippet in raw_snippets)
-    cache_path.write_text(full_text, encoding="utf-8")
-    return full_text
-
-
-def chunk_text(text: str, limit: int = TOKENS_PER_CHUNK) -> Iterable[str]:
-    words: int = 0
-    buffer: list[str] = []
-    for line in text.splitlines():
-        w = len(line.split())
-        if words + w > limit:
-            yield "\n".join(buffer)
-            buffer, words = [], 0
-        buffer.append(line)
-        words += w
-    if buffer:
-        yield "\n".join(buffer)
-
-
-def call_ollama(prompt: str, model: str = DEFAULT_MODEL) -> str:
-    payload = {"model": model, "prompt": prompt, "stream": False}
-    r = requests.post(OLLAMA_URL, json=payload, timeout=300)
-    r.raise_for_status()
-    return r.json()["response"].strip()
-
-
-def write_markdown(
-    video_id: str, exec_summary: str, chunk_summaries: List[str]
-) -> None:
-    DOCS_DIR.mkdir(parents=True, exist_ok=True)
-    md_path = DOCS_DIR / f"{video_id}.md"
-    front_matter = textwrap.dedent(
-        f"""        ---
-        video_id: {video_id}
-        saved: {time.strftime('%Y-%m-%dT%H:%M:%SZ')}
-        url: https://youtu.be/{video_id}
-        model: {DEFAULT_MODEL}
-        tags: [youtube, transcript]
-        ---
-    """
-    )
-    chunks_md = "\n\n".join(
-        f"### Chunk {i+1}\n{summary}" for i, summary in enumerate(chunk_summaries)
-    )
-    body = f"## Executive Summary\n{exec_summary}\n\n## Chunk Summaries\n{chunks_md}"
-    md_path.write_text(front_matter + "\n" + body, encoding="utf-8")
-
-
-def append_log(entry: dict) -> None:
-    LOG_FILE.parent.mkdir(parents=True, exist_ok=True)
-    with LOG_FILE.open("a", encoding="utf-8") as fp:
-        fp.write(json.dumps(entry) + "\n")
-
-
-# ---------------------------------------------------------------------------- #
-# Pipeline
-# ---------------------------------------------------------------------------- #
-def process_video(video_id: str, model: str) -> None:
+    if model is None:
+        model = config.OLLAMA_MODEL
+    
     try:
-        transcript_text = fetch_transcript_text(video_id)
-    except NoTranscriptFound:
-        print(f"✗ {video_id}: no public captions")
-        return
+        # Extract video ID
+        video_id = extract_video_id(url_or_id)
+        logger.info(f"Processing video {video_id}")
+        
+        # Fetch transcript
+        with yaspin(text=f"Fetching transcript for {video_id}...", color="cyan") as spinner:
+            transcript_data = fetch_transcript(video_id, use_cache=use_cache)
+            spinner.ok("✓")
+        
+        # Create slug for filename
+        slug = slugify(transcript_data.title)
+        
+        # Check if output file already exists
+        output_path = config.DOCS_DIR / f"{slug}.md"
+        if output_path.exists() and not auto_overwrite:
+            # For now, just use versioning - in the full CLI we'll prompt the user
+            version = get_available_version(slug)
+            if version:
+                slug = f"{slug}_{version}"
+                output_path = config.DOCS_DIR / f"{slug}.md"
+        
+        # Chunk the transcript
+        chunks = chunk_text(transcript_data.text)
+        logger.info(f"Split transcript into {len(chunks)} chunks")
+        
+        # Process each chunk
+        chunk_summaries = []
+        with yaspin(text=f"Summarizing {len(chunks)} chunks...", color="yellow") as spinner:
+            for i, chunk in enumerate(chunks, 1):
+                spinner.text = f"Summarizing chunk {i}/{len(chunks)}..."
+                summary = summarise_chunk(chunk, model)
+                chunk_summaries.append(summary)
+            spinner.ok("✓")
+        
+        # Generate executive summary
+        with yaspin(text="Generating executive summary...", color="green") as spinner:
+            executive_summary = summarise_transcript(chunk_summaries, model)
+            spinner.ok("✓")
+        
+        # Save markdown file
+        output_path = save_markdown(
+            video_id=video_id,
+            title=transcript_data.title,
+            executive_summary=executive_summary,
+            chunk_summaries=chunk_summaries,
+            model=model,
+            slug=slug
+        )
+        
+        # Log success
+        log_ingest(
+            video_id=video_id,
+            title=transcript_data.title,
+            slug=slug,
+            model=model,
+            chunk_count=len(chunk_summaries),
+            status="success"
+        )
+        
+        logger.info(f"✓ {video_id}: {len(chunk_summaries)} chunks summarized → {output_path}")
+        
+        return ProcessingResult(
+            video_id=video_id,
+            title=transcript_data.title,
+            slug=slug,
+            success=True,
+            chunk_count=len(chunk_summaries),
+            output_path=output_path
+        )
+        
+    except NoTranscriptAvailable as e:
+        error_msg = f"No transcript available for {url_or_id}"
+        logger.warning(error_msg)
+        
+        # Try to extract video_id for logging, fallback to url_or_id
+        try:
+            video_id = extract_video_id(url_or_id)
+        except:
+            video_id = url_or_id[:11]  # Truncate for safety
+        
+        log_ingest(
+            video_id=video_id,
+            title="Unknown",
+            slug="unknown",
+            model=model or config.OLLAMA_MODEL,
+            chunk_count=0,
+            status="no_transcript",
+            error=str(e)
+        )
+        
+        return ProcessingResult(
+            video_id=video_id,
+            title="Unknown",
+            slug="unknown",
+            success=False,
+            chunk_count=0,
+            error=error_msg
+        )
+        
+    except (TranscriptError, LLMError) as e:
+        error_msg = f"Processing failed for {url_or_id}: {e}"
+        logger.error(error_msg)
+        
+        try:
+            video_id = extract_video_id(url_or_id)
+        except:
+            video_id = url_or_id[:11]
+        
+        log_ingest(
+            video_id=video_id,
+            title="Unknown",
+            slug="unknown",
+            model=model or config.OLLAMA_MODEL,
+            chunk_count=0,
+            status="error",
+            error=str(e)
+        )
+        
+        return ProcessingResult(
+            video_id=video_id,
+            title="Unknown",
+            slug="unknown",
+            success=False,
+            chunk_count=0,
+            error=error_msg
+        )
+        
+    except Exception as e:
+        error_msg = f"Unexpected error processing {url_or_id}: {e}"
+        logger.error(error_msg, exc_info=True)
+        
+        try:
+            video_id = extract_video_id(url_or_id)
+        except:
+            video_id = url_or_id[:11]
+        
+        log_ingest(
+            video_id=video_id,
+            title="Unknown",
+            slug="unknown",
+            model=model or config.OLLAMA_MODEL,
+            chunk_count=0,
+            status="error",
+            error=str(e)
+        )
+        
+        return ProcessingResult(
+            video_id=video_id,
+            title="Unknown",
+            slug="unknown",
+            success=False,
+            chunk_count=0,
+            error=error_msg
+        )
 
-    chunk_summaries: List[str] = []
-    for chunk in chunk_text(transcript_text):
-        summary = call_ollama(CHUNK_PROMPT_TEMPLATE.format(chunk=chunk), model)
-        chunk_summaries.append(summary)
 
-    bullets = "\n\n".join(chunk_summaries)
-    executive_summary = call_ollama(
-        FINAL_PROMPT_TEMPLATE.format(bullet_summaries=bullets), model
+def process_video_list(
+    video_urls: list[str],
+    model: str | None = None,
+    use_cache: bool = True,
+    auto_overwrite: bool = False
+) -> ProcessingStats:
+    """
+    Process a list of video URLs/IDs.
+    
+    Args:
+        video_urls: List of YouTube URLs or video IDs.
+        model: LLM model to use, defaults to config.OLLAMA_MODEL.
+        use_cache: Whether to use cached transcripts.
+        auto_overwrite: Whether to overwrite existing files automatically.
+        
+    Returns:
+        ProcessingStats with batch processing results.
+    """
+    if model is None:
+        model = config.OLLAMA_MODEL
+    
+    logger.info(f"Processing {len(video_urls)} videos with model {model}")
+    
+    successful = 0
+    failed = 0
+    skipped = 0
+    
+    for i, url_or_id in enumerate(video_urls, 1):
+        print(f"\n--- Processing video {i}/{len(video_urls)} ---")
+        
+        result = process_single_video(
+            url_or_id=url_or_id,
+            model=model,
+            use_cache=use_cache,
+            auto_overwrite=auto_overwrite
+        )
+        
+        if result.success:
+            successful += 1
+            print(f"✓ {result.video_id}: {result.chunk_count} chunks → {result.output_path}")
+        else:
+            failed += 1
+            print(f"✗ {result.video_id}: {result.error}")
+    
+    stats = ProcessingStats(
+        total_videos=len(video_urls),
+        successful=successful,
+        failed=failed,
+        skipped=skipped
     )
-
-    write_markdown(video_id, executive_summary, chunk_summaries)
-    append_log(
-        {
-            "video_id": video_id,
-            "chunks": len(chunk_summaries),
-            "model": model,
-            "timestamp": time.time(),
-        }
-    )
-    print(f"✓ {video_id}: {len(chunk_summaries)} chunks summarised")
+    
+    print(f"\n--- Batch Processing Complete ---")
+    print(f"Total: {stats.total_videos}")
+    print(f"Successful: {stats.successful}")
+    print(f"Failed: {stats.failed}")
+    if stats.skipped > 0:
+        print(f"Skipped: {stats.skipped}")
+    
+    return stats
 
 
-# ---------------------------------------------------------------------------- #
-# CLI
-# ---------------------------------------------------------------------------- #
+def check_prerequisites() -> bool:
+    """
+    Check if all prerequisites are met before processing.
+    
+    Returns:
+        True if all checks pass, False otherwise.
+    """
+    try:
+        with yaspin(text="Checking Ollama connection...", color="blue") as spinner:
+            if not ensure_connection():
+                spinner.fail("✗")
+                print(f"❌ Ollama connection failed")
+                return False
+            spinner.ok("✓")
+        
+        # Create necessary directories
+        config.create_directories()
+        
+        return True
+        
+    except LLMConnectionError as e:
+        print(f"❌ {e}")
+        return False
+    except Exception as e:
+        print(f"❌ Unexpected error during prerequisite check: {e}")
+        return False
+
+
+# Legacy function for backwards compatibility
 def main() -> None:
+    """Legacy main function for backwards compatibility."""
+    import argparse
+    from .utils import read_video_list
+    
     parser = argparse.ArgumentParser(description="YouTube transcript → Ollama summary")
     parser.add_argument("list_file", help="Text file of YouTube URLs/IDs")
-    parser.add_argument("--model", default=DEFAULT_MODEL, help="Ollama model tag")
+    parser.add_argument("--model", default=config.OLLAMA_MODEL, help="Ollama model tag")
     args = parser.parse_args()
-
-    for line in Path(args.list_file).read_text().splitlines():
-        vid = extract_video_id(line.strip())
-        if vid:
-            process_video(vid, args.model)
+    
+    # Check prerequisites
+    if not check_prerequisites():
+        return
+    
+    try:
+        # Read video list
+        video_urls = read_video_list(Path(args.list_file))
+        
+        # Process videos
+        process_video_list(video_urls, model=args.model)
+        
+    except Exception as e:
+        print(f"❌ Error: {e}")
 
 
 if __name__ == "__main__":

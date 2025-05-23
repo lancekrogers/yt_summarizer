@@ -321,17 +321,18 @@ process_single_video('dQw4w9WgXcQ')
 ## 🧪 Testing
 
 ```bash
-# Test basic functionality
+# Run complete test suite (29 tests)
+poetry run pytest
+
+# Quick setup verification
+python verify_setup.py
+
+# Test the application
 echo "dQw4w9WgXcQ" > test_videos.txt
 ./run test_videos.txt
 
 # Test interactive mode
 ./run
-
-# Test different formats
-echo "url,title
-dQw4w9WgXcQ,Rick Roll" > test.csv
-./run test.csv
 ```
 
 **Safe Test Videos:**

@@ -28,14 +28,29 @@ class LLMError(Exception):
     pass
 
 
-# Prompt templates
-CHUNK_PROMPT_TEMPLATE = """You are a precise research assistant. Your goal is to extract the prompts discussed in this transcript chunk, focusing on specific mentions of prompts the writer finds helpful.
+# Prompt templates - configurable via environment or parameters
+DEFAULT_CHUNK_PROMPT = """You are a helpful assistant that summarizes video transcript content. Please provide a clear, concise summary of the key points discussed in this transcript chunk:
 
-{chunk}"""
+{chunk}
 
-FINAL_PROMPT_TEMPLATE = """Combine these chunk summaries into a concise executive overview:
+Focus on the main topics, important information, and key takeaways."""
 
-{bullet_summaries}"""
+DEFAULT_EXECUTIVE_PROMPT = """Please create a comprehensive executive summary by combining these individual section summaries into a cohesive overview:
+
+{bullet_summaries}
+
+Provide a clear, well-structured summary that captures the overall content and main themes."""
+
+# Allow customization via config
+def get_chunk_prompt_template() -> str:
+    """Get the chunk summarization prompt template."""
+    import os
+    return os.getenv("CHUNK_PROMPT_TEMPLATE", DEFAULT_CHUNK_PROMPT)
+
+def get_executive_prompt_template() -> str:
+    """Get the executive summary prompt template.""" 
+    import os
+    return os.getenv("EXECUTIVE_PROMPT_TEMPLATE", DEFAULT_EXECUTIVE_PROMPT)
 
 
 def ensure_connection() -> bool:
@@ -90,7 +105,7 @@ def summarise_chunk(chunk: str, model: str | None = None) -> str:
     if model is None:
         model = config.OLLAMA_MODEL
         
-    prompt = CHUNK_PROMPT_TEMPLATE.format(chunk=chunk)
+    prompt = get_chunk_prompt_template().format(chunk=chunk)
     
     try:
         # Try using the official ollama client first
@@ -144,7 +159,7 @@ def summarise_transcript(chunk_summaries: List[str], model: str | None = None) -
         model = config.OLLAMA_MODEL
         
     bullet_summaries = "\n\n".join(chunk_summaries)
-    prompt = FINAL_PROMPT_TEMPLATE.format(bullet_summaries=bullet_summaries)
+    prompt = get_executive_prompt_template().format(bullet_summaries=bullet_summaries)
     
     try:
         # Try using the official ollama client first

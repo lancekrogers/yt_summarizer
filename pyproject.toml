@@ -12,7 +12,6 @@ ollama = "^0.3.0"
 questionary = "^2.0.0"
 yaspin = "^3.0.0"
 python-dotenv = "^1.0.0"
-python-slugify = "^8.0.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.4"
@@ -23,6 +22,14 @@ mypy = "^1.13.0"
 
 [tool.poetry.scripts]
 yt-summarizer = "yt_summarizer.cli:main"
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+addopts = "-ra -q --tb=short"
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
 
 [build-system]
 requires = ["poetry-core"]

@@ -12,6 +12,7 @@ import time
 from pathlib import Path
 from typing import NamedTuple
 
+import requests
 from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound
 from youtube_transcript_api.formatters import TextFormatter
 
@@ -131,6 +132,34 @@ def _save_to_cache(video_id: str, text: str) -> None:
         logger.warning(f"Failed to cache transcript for {video_id}: {e}")
 
 
+def fetch_video_title(video_id: str) -> str:
+    """
+    Fetch video title from YouTube using oembed API.
+    
+    Args:
+        video_id: YouTube video ID.
+        
+    Returns:
+        Video title or video_id as fallback.
+    """
+    try:
+        # Use YouTube's oembed API to get video metadata
+        url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        
+        response = requests.get(url, timeout=config.YOUTUBE_TIMEOUT)
+        response.raise_for_status()
+        
+        data = response.json()
+        title = data.get("title", video_id)
+        
+        logger.debug(f"Fetched title for {video_id}: {title}")
+        return title
+        
+    except Exception as e:
+        logger.warning(f"Failed to fetch title for {video_id}: {e}")
+        return video_id  # Fallback to video ID
+
+
 def fetch_transcript(video_id: str, use_cache: bool = True) -> TranscriptData:
     """
     Fetch transcript for a YouTube video.
@@ -151,11 +180,11 @@ def fetch_transcript(video_id: str, use_cache: bool = True) -> TranscriptData:
     if use_cache:
         cached_text = _load_from_cache(video_id)
         if cached_text:
-            # We don't have title in cache, so we'll use video_id as placeholder
-            # In a real implementation, you might want to store metadata separately
+            # Fetch title even for cached transcripts
+            title = fetch_video_title(video_id)
             return TranscriptData(
                 video_id=video_id,
-                title=video_id,  # Placeholder - we'd need additional API call for title
+                title=title,
                 text=cached_text,
                 cached=True
             )
@@ -190,8 +219,8 @@ def fetch_transcript(video_id: str, use_cache: bool = True) -> TranscriptData:
         formatter = TextFormatter()
         text = formatter.format_transcript(transcript_data)
         
-        # Get video title if available (this is a simple approach)
-        title = video_id  # Placeholder - we'd need additional API call for title
+        # Get video title
+        title = fetch_video_title(video_id)
         
         # Save to cache if enabled
         if use_cache:

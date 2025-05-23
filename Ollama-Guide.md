@@ -1,9 +1,3 @@
----
-id: Ollama-Guide
-aliases: []
-tags: []
----
-
 # Ollama Quick‑Start & Model Switching Guide
 
 This short guide supplements **YouTube‑Summarizer** and shows how to

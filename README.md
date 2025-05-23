@@ -4,24 +4,24 @@ A powerful, interactive CLI tool that fetches YouTube video transcripts and gene
 
 ## ✨ Key Features
 
-| Feature | Description |
-|---------|-------------|
-| **Local Processing** | No API keys required - uses Ollama for 100% local LLM processing |
+| Feature                       | Description                                                       |
+| ----------------------------- | ----------------------------------------------------------------- |
+| **Local Processing**          | No API keys required - uses Ollama for 100% local LLM processing  |
 | **Smart Transcript Fetching** | Prefers manual captions, falls back to auto-generated transcripts |
-| **Interactive TUI** | Beautiful terminal interface with guided workflows |
-| **Multiple Input Formats** | Supports `.txt`, `.list`, `.urls`, and `.csv` files |
-| **Intelligent Chunking** | Automatically splits long videos for high-quality summaries |
-| **Caching System** | Caches transcripts to avoid re-downloading |
-| **Progress Tracking** | Real-time progress indicators and status updates |
-| **Flexible Output** | Markdown summaries with YAML frontmatter |
-| **Comprehensive Logging** | JSON logs for processing history and debugging |
+| **Interactive TUI**           | Beautiful terminal interface with guided workflows                |
+| **Multiple Input Formats**    | Supports `.txt`, `.list`, `.urls`, and `.csv` files               |
+| **Intelligent Chunking**      | Automatically splits long videos for high-quality summaries       |
+| **Caching System**            | Caches transcripts to avoid re-downloading                        |
+| **Progress Tracking**         | Real-time progress indicators and status updates                  |
+| **Flexible Output**           | Markdown summaries with YAML frontmatter                          |
+| **Comprehensive Logging**     | JSON logs for processing history and debugging                    |
 
 ---
 
 ## 🎯 Perfect For
 
 - **Researchers** analyzing video content
-- **Content creators** studying competitor videos  
+- **Content creators** studying competitor videos
 - **Students** summarizing lecture recordings
 - **Professionals** processing meeting recordings
 - **Anyone** who needs to quickly understand video content
@@ -41,6 +41,7 @@ A powerful, interactive CLI tool that fetches YouTube video transcripts and gene
 ## 🚀 Quick Start
 
 ### 1. Clone and Setup
+
 ```bash
 git clone <your-repo-url>
 cd youtube-summarizer
@@ -53,6 +54,7 @@ direnv allow
 ```
 
 ### 2. Setup Ollama
+
 ```bash
 # Install Ollama (macOS)
 brew install ollama
@@ -68,6 +70,7 @@ ollama serve
 ```
 
 ### 3. Run the Tool
+
 ```bash
 # Interactive mode (recommended)
 ./run
@@ -81,18 +84,21 @@ poetry run yt-summarizer
 ## 🎯 Ergonomic Usage
 
 **Option 1: Run Script (Recommended)**
+
 ```bash
 ./run                    # Interactive mode
 ./run videos.txt         # Legacy mode with file
 ```
 
 **Option 2: Shell Alias**
+
 ```bash
 # Add to ~/.zshrc or ~/.bashrc:
 alias yts="cd /path/to/youtube-summarizer && poetry run yt-summarizer"
 ```
 
 **Option 3: Direct Poetry**
+
 ```bash
 poetry run yt-summarizer
 ```
@@ -104,23 +110,28 @@ poetry run yt-summarizer
 The interactive TUI provides a guided experience:
 
 ### Input Source Selection
+
 - **📋 Default file** (`videos.txt` if present)
 - **📄 Custom file** (smart file browser with format filtering)
 - **🔗 Single URL** (paste any YouTube URL)
 
 ### Smart File Selection
+
 When choosing custom files, you'll see:
+
 - **Only compatible formats** (`.txt`, `.list`, `.urls`, `.csv`)
 - **Visual file browser** with icons
 - **Directory browsing** option
 - **Manual path entry** fallback
 
 ### Processing Options
+
 - **Model selection** with defaults
-- **Cache preferences** 
+- **Cache preferences**
 - **File conflict handling** (overwrite/skip/version)
 
 ### Post-Run Actions
+
 - **➕ Summarize more videos**
 - **🧹 Clean transcript cache**
 - **🚪 Quit**
@@ -129,14 +140,15 @@ When choosing custom files, you'll see:
 
 ## 📂 Supported File Formats
 
-| Format | Description | Example |
-|--------|-------------|---------|
-| `.txt` | One URL/ID per line | `dQw4w9WgXcQ`<br>`https://youtu.be/...` |
-| `.list` | Video list files | Same as `.txt` |
-| `.urls` | URL files | Same as `.txt` |
-| `.csv` | CSV with URLs in first column | `url,title`<br>`dQw4w9WgXcQ,Rick Roll` |
+| Format  | Description                   | Example                                 |
+| ------- | ----------------------------- | --------------------------------------- |
+| `.txt`  | One URL/ID per line           | `dQw4w9WgXcQ`<br>`https://youtu.be/...` |
+| `.list` | Video list files              | Same as `.txt`                          |
+| `.urls` | URL files                     | Same as `.txt`                          |
+| `.csv`  | CSV with URLs in first column | `url,title`<br>`dQw4w9WgXcQ,Rick Roll`  |
 
 **Features:**
+
 - Comments supported (`# comment`)
 - Auto-detects CSV headers
 - Validates video IDs/URLs
@@ -146,15 +158,16 @@ When choosing custom files, you'll see:
 
 ## 🖥️ Ollama Setup
 
-| Step | Command | Notes |
-|------|---------|-------|
-| **Install** | macOS: `brew install ollama`<br>Linux: `curl -fsSL https://ollama.ai/install.sh \| sh` | See [ollama.ai](https://ollama.ai) for other platforms |
-| **Pull Model** | `ollama pull llama3.2:latest` | Downloads once, stored locally |
-| **Start Server** | `ollama serve` | Runs API on port **11434** |
-| **List Models** | `ollama list` | See available models |
-| **Switch Models** | Use `--model` flag or interactive selection | Any model from `ollama list` |
+| Step              | Command                                                                                | Notes                                                  |
+| ----------------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| **Install**       | macOS: `brew install ollama`<br>Linux: `curl -fsSL https://ollama.ai/install.sh \| sh` | See [ollama.ai](https://ollama.ai) for other platforms |
+| **Pull Model**    | `ollama pull llama3.2:latest`                                                          | Downloads once, stored locally                         |
+| **Start Server**  | `ollama serve`                                                                         | Runs API on port **11434**                             |
+| **List Models**   | `ollama list`                                                                          | See available models                                   |
+| **Switch Models** | Use `--model` flag or interactive selection                                            | Any model from `ollama list`                           |
 
 **Memory Considerations:**
+
 - Use smaller models (`llama3.2:1b`, `phi3:mini`) for limited memory
 - Set `OLLAMA_NO_GPU=1` for CPU-only processing
 - Larger models (`llama3.2:latest`) provide better summaries
@@ -164,12 +177,14 @@ When choosing custom files, you'll see:
 ## ⚙️ CLI Reference
 
 ### Interactive Mode (Default)
+
 ```bash
 ./run
 poetry run yt-summarizer
 ```
 
 ### Legacy Mode
+
 ```bash
 ./run videos.txt --model llama3.2:latest
 poetry run yt-summarizer videos.txt --model llama3.2:latest
@@ -207,6 +222,7 @@ youtube-summarizer/
 ## 📊 Output Format
 
 ### Markdown Summaries (`docs/`)
+
 ```yaml
 ---
 video_id: dQw4w9WgXcQ
@@ -231,8 +247,16 @@ tags: [youtube, transcript]
 ```
 
 ### Processing Logs (`logs/ingest.jsonl`)
+
 ```json
-{"timestamp": 1642867200, "video_id": "dQw4w9WgXcQ", "title": "Never Gonna Give You Up", "status": "success", "chunk_count": 3, "model": "llama3.2:latest"}
+{
+  "timestamp": 1642867200,
+  "video_id": "dQw4w9WgXcQ",
+  "title": "Never Gonna Give You Up",
+  "status": "success",
+  "chunk_count": 3,
+  "model": "llama3.2:latest"
+}
 ```
 
 ---
@@ -240,6 +264,7 @@ tags: [youtube, transcript]
 ## ⚙️ Configuration
 
 ### Environment Variables (`.env`)
+
 ```bash
 # Ollama Configuration
 OLLAMA_URL=http://localhost:11434
@@ -260,6 +285,7 @@ YOUTUBE_TIMEOUT=30
 ```
 
 ### Configuration Priority
+
 1. Environment variables (`.env` file)
 2. Built-in defaults
 3. CLI arguments (legacy mode)
@@ -268,16 +294,17 @@ YOUTUBE_TIMEOUT=30
 
 ## 🛠️ Troubleshooting
 
-| Issue | Solution |
-|-------|----------|
-| `NoTranscriptFound` | Video has no public captions - try a different video |
-| `LLMConnectionError` | Start Ollama server: `ollama serve` |
+| Issue                  | Solution                                                   |
+| ---------------------- | ---------------------------------------------------------- |
+| `NoTranscriptFound`    | Video has no public captions - try a different video       |
+| `LLMConnectionError`   | Start Ollama server: `ollama serve`                        |
 | `HTTP 404` from Ollama | Check model exists: `ollama list` or `ollama pull <model>` |
-| Out of memory | Use smaller model (`llama3.2:1b`) or `OLLAMA_NO_GPU=1` |
-| Poetry install fails | Ensure Python 3.11-3.13, update Poetry |
-| Rate limiting | Built-in 2-second delays prevent YouTube API issues |
+| Out of memory          | Use smaller model (`llama3.2:1b`) or `OLLAMA_NO_GPU=1`     |
+| Poetry install fails   | Ensure Python 3.11-3.13, update Poetry                     |
+| Rate limiting          | Built-in 2-second delays prevent YouTube API issues        |
 
 ### Debug Mode
+
 ```bash
 # Enable verbose logging
 export PYTHONPATH=src
@@ -308,6 +335,7 @@ dQw4w9WgXcQ,Rick Roll" > test.csv
 ```
 
 **Safe Test Videos:**
+
 - `dQw4w9WgXcQ` - Rick Roll (guaranteed captions)
 - `jNQXAC9IVRw` - First YouTube video (short)
 
@@ -332,6 +360,7 @@ dQw4w9WgXcQ,Rick Roll" > test.csv
 5. Submit a pull request
 
 ### Development Setup
+
 ```bash
 poetry install --with dev
 poetry run black src/
@@ -350,7 +379,7 @@ MIT License - see LICENSE file for details.
 ## 🙏 Acknowledgments
 
 - **youtube-transcript-api** for transcript fetching
-- **Ollama** for local LLM inference  
+- **Ollama** for local LLM inference
 - **questionary** for beautiful TUI interactions
 - **Poetry** for dependency management
 

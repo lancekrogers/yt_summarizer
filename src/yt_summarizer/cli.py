@@ -69,49 +69,115 @@ def get_input_source() -> tuple[str, List[str]]:
         return "default_file", videos
     
     elif "Custom file" in source:
-        def validate_video_list_file(path_str: str) -> bool | str:
-            """Validate that the file exists and is a supported format."""
-            if not path_str.strip():
-                return "Please enter a file path"
+        def get_compatible_files(directory: Path = None) -> List[str]:
+            """Get list of compatible video list files in the given directory."""
+            if directory is None:
+                directory = Path.cwd()
             
-            path = Path(path_str.strip())
-            if not path.exists():
-                return "File does not exist"
-            
-            if not path.is_file():
-                return "Path is not a file"
-            
-            # Check file extension
             supported_extensions = {'.txt', '.list', '.urls', '.csv'}
-            if path.suffix.lower() not in supported_extensions:
-                return f"Unsupported file type. Use: {', '.join(sorted(supported_extensions))}"
+            compatible_files = []
             
-            # Try to read the file to check if it's valid
             try:
-                content = path.read_text(encoding='utf-8').strip()
-                if not content:
-                    return "File is empty"
-                    
-                # Basic check for valid content (at least one non-comment line)
-                valid_lines = [line.strip() for line in content.splitlines() 
-                              if line.strip() and not line.strip().startswith('#')]
-                if not valid_lines:
-                    return "File contains no valid video URLs/IDs"
-                    
-            except UnicodeDecodeError:
-                return "File is not a valid text file"
-            except Exception as e:
-                return f"Cannot read file: {e}"
+                for file_path in directory.iterdir():
+                    if (file_path.is_file() and 
+                        file_path.suffix.lower() in supported_extensions):
+                        compatible_files.append(str(file_path))
+                
+                # Sort by name for consistent ordering
+                compatible_files.sort()
+                
+            except PermissionError:
+                pass  # Skip directories we can't read
             
-            return True
+            return compatible_files
         
-        file_path = questionary.path(
-            "Enter path to video list file (.txt, .list, .urls, .csv):",
-            validate=validate_video_list_file
+        # Get compatible files in current directory
+        current_dir_files = get_compatible_files()
+        
+        choices = []
+        if current_dir_files:
+            choices.extend([f"📄 {Path(f).name}" for f in current_dir_files])
+        
+        choices.extend([
+            "📁 Browse other directory",
+            "✏️  Enter path manually"
+        ])
+        
+        if not choices or len(choices) == 2:  # Only browse/manual options
+            choices = [
+                "📁 Browse other directory", 
+                "✏️  Enter path manually"
+            ]
+        
+        selection = questionary.select(
+            "Select video list file:",
+            choices=choices
         ).ask()
         
-        if not file_path:
+        if not selection:
             sys.exit(0)
+        
+        if "Browse other directory" in selection:
+            # Let user pick a directory first
+            dir_path = questionary.path(
+                "Enter directory to browse:",
+                only_directories=True
+            ).ask()
+            
+            if not dir_path:
+                sys.exit(0)
+            
+            # Get compatible files in selected directory
+            dir_files = get_compatible_files(Path(dir_path))
+            
+            if not dir_files:
+                print(f"❌ No compatible files (.txt, .list, .urls, .csv) found in {dir_path}")
+                sys.exit(1)
+            
+            file_selection = questionary.select(
+                f"Select file from {dir_path}:",
+                choices=[f"📄 {Path(f).name}" for f in dir_files]
+            ).ask()
+            
+            if not file_selection:
+                sys.exit(0)
+            
+            # Extract filename and construct full path
+            filename = file_selection.replace("📄 ", "")
+            file_path = str(Path(dir_path) / filename)
+            
+        elif "Enter path manually" in selection:
+            def validate_video_list_file(path_str: str) -> bool | str:
+                """Validate that the file exists and is a supported format."""
+                if not path_str.strip():
+                    return "Please enter a file path"
+                
+                path = Path(path_str.strip())
+                if not path.exists():
+                    return "File does not exist"
+                
+                if not path.is_file():
+                    return "Path is not a file"
+                
+                # Check file extension
+                supported_extensions = {'.txt', '.list', '.urls', '.csv'}
+                if path.suffix.lower() not in supported_extensions:
+                    return f"Unsupported file type. Use: {', '.join(sorted(supported_extensions))}"
+                
+                return True
+            
+            file_path = questionary.path(
+                "Enter path to video list file (.txt, .list, .urls, .csv):",
+                validate=validate_video_list_file
+            ).ask()
+            
+            if not file_path:
+                sys.exit(0)
+        
+        else:
+            # User selected a file from current directory
+            filename = selection.replace("📄 ", "")
+            file_path = filename  # It's already the filename from current directory
         
         videos = read_video_list(Path(file_path))
         return "custom_file", videos

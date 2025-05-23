@@ -210,6 +210,10 @@ def read_video_list(file_path: Path) -> list[str]:
     """
     Read and parse a video list file.
     
+    Supports formats:
+    - .txt/.list/.urls: One URL/ID per line
+    - .csv: First column contains URLs/IDs
+    
     Args:
         file_path: Path to the video list file.
         
@@ -227,12 +231,33 @@ def read_video_list(file_path: Path) -> list[str]:
     if not content:
         raise ValueError(f"Video list file is empty: {file_path}")
     
-    # Parse lines, skipping empty lines and comments
     videos = []
-    for line_num, line in enumerate(content.splitlines(), 1):
-        line = line.strip()
-        if line and not line.startswith('#'):
-            videos.append(line)
+    
+    # Handle CSV files
+    if file_path.suffix.lower() == '.csv':
+        import csv
+        import io
+        from .transcript import extract_video_id
+        
+        # Parse CSV and take first column
+        csv_reader = csv.reader(io.StringIO(content))
+        for row_num, row in enumerate(csv_reader, 1):
+            if row and row[0].strip():  # First column is not empty
+                line = row[0].strip()
+                if not line.startswith('#'):  # Skip comment rows
+                    # Skip likely header rows by checking if it looks like a video ID/URL
+                    try:
+                        extract_video_id(line)  # This will raise an exception if not valid
+                        videos.append(line)
+                    except:
+                        # Skip non-video lines (likely headers or invalid entries)
+                        continue
+    else:
+        # Handle text-based formats (.txt, .list, .urls)
+        for line_num, line in enumerate(content.splitlines(), 1):
+            line = line.strip()
+            if line and not line.startswith('#'):
+                videos.append(line)
     
     if not videos:
         raise ValueError(f"No valid video URLs/IDs found in: {file_path}")

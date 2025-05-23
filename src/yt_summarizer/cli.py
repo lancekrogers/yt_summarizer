@@ -69,9 +69,45 @@ def get_input_source() -> tuple[str, List[str]]:
         return "default_file", videos
     
     elif "Custom file" in source:
+        def validate_video_list_file(path_str: str) -> bool | str:
+            """Validate that the file exists and is a supported format."""
+            if not path_str.strip():
+                return "Please enter a file path"
+            
+            path = Path(path_str.strip())
+            if not path.exists():
+                return "File does not exist"
+            
+            if not path.is_file():
+                return "Path is not a file"
+            
+            # Check file extension
+            supported_extensions = {'.txt', '.list', '.urls', '.csv'}
+            if path.suffix.lower() not in supported_extensions:
+                return f"Unsupported file type. Use: {', '.join(sorted(supported_extensions))}"
+            
+            # Try to read the file to check if it's valid
+            try:
+                content = path.read_text(encoding='utf-8').strip()
+                if not content:
+                    return "File is empty"
+                    
+                # Basic check for valid content (at least one non-comment line)
+                valid_lines = [line.strip() for line in content.splitlines() 
+                              if line.strip() and not line.strip().startswith('#')]
+                if not valid_lines:
+                    return "File contains no valid video URLs/IDs"
+                    
+            except UnicodeDecodeError:
+                return "File is not a valid text file"
+            except Exception as e:
+                return f"Cannot read file: {e}"
+            
+            return True
+        
         file_path = questionary.path(
-            "Enter path to video list file:",
-            validate=lambda x: Path(x).exists() or "File does not exist"
+            "Enter path to video list file (.txt, .list, .urls, .csv):",
+            validate=validate_video_list_file
         ).ask()
         
         if not file_path:

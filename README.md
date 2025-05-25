@@ -7,6 +7,7 @@ A powerful, interactive CLI tool that fetches YouTube video transcripts and gene
 | Feature                       | Description                                                       |
 | ----------------------------- | ----------------------------------------------------------------- |
 | **Local Processing**          | No API keys required - uses Ollama for 100% local LLM processing  |
+| **Research Plans**            | Focused content extraction with corpus aggregation and analysis   |
 | **Smart Transcript Fetching** | Prefers manual captions, falls back to auto-generated transcripts |
 | **Interactive TUI**           | Beautiful terminal interface with guided workflows                |
 | **Multiple Input Formats**    | Supports `.txt`, `.list`, `.urls`, and `.csv` files               |
@@ -138,6 +139,77 @@ When choosing custom files, you'll see:
 
 ---
 
+## 🔬 Research Plan Feature
+
+The research plan system enables **focused content extraction** from YouTube videos based on specific research topics, with corpus aggregation and analysis capabilities.
+
+### Key Benefits
+
+- **Targeted extraction** - Extract only relevant content (e.g., specific prompts, techniques, insights)
+- **Multi-video analysis** - Process entire video collections with unified methodology
+- **Corpus aggregation** - Combine individual summaries into comprehensive research documents
+- **Pattern analysis** - Identify themes and insights across multiple videos
+
+### How It Works
+
+1. **Create Research Plan** - Define your research focus and custom prompts
+2. **Process Videos** - Extract targeted content using plan-specific prompts  
+3. **Aggregate Corpus** - Combine all video summaries into a unified document
+4. **Analyze Patterns** - Generate insights and identify common themes
+
+### Interactive Research Plan Creation
+
+```bash
+./run
+# Select "🔬 Research Plan" from the main menu
+# Choose "➕ Create New Plan" 
+# Follow the guided setup:
+#   - Enter plan name and description
+#   - Configure video sources (URLs and/or files)
+#   - Ready-to-use plan created automatically
+```
+
+### Research Plan Structure
+
+Plans are stored as YAML files in `research_plans/`:
+
+```yaml
+research_plan:
+  name: "LLM Prompting Techniques"
+  description: "Extract specific prompts from LLM-related videos"
+
+videos:
+  urls:
+    - "https://www.youtube.com/watch?v=VIDEO_ID_1"
+  list_file: "videolist.txt"  # Optional
+
+prompts:
+  chunk_prompt: |
+    Extract only the specific prompts mentioned in this transcript:
+    {chunk}
+    
+  executive_prompt: |
+    Organize the extracted prompts from this video:
+    {bullet_summaries}
+```
+
+### File Organization
+
+```
+data/
+├── videos/              # Individual video summaries  
+├── corpus/              # Research plan aggregations
+│   ├── plan_name.md     # Combined summaries
+│   └── plan_name_summary.md  # Final analysis
+└── raw/                 # Cached transcripts
+
+research_plans/          # Plan configurations
+├── my_research.yaml
+└── example_llm_prompting.yaml
+```
+
+---
+
 ## 📂 Supported File Formats
 
 | Format  | Description                   | Example                                 |
@@ -204,13 +276,19 @@ youtube-summarizer/
 ├── src/yt_summarizer/      # Main package
 │   ├── cli.py             # Interactive TUI
 │   ├── config.py          # Configuration management
+│   ├── corpus.py          # Research corpus aggregation
 │   ├── llm.py             # Ollama integration
 │   ├── pipeline.py        # Processing orchestration
+│   ├── research_plan.py   # Research plan management
 │   ├── transcript.py      # YouTube API handling
 │   └── utils.py           # Utilities & markdown
 ├── data/                  # Generated content
 │   ├── raw/              # Cached transcripts (.txt)
-│   └── docs/             # Markdown summaries
+│   ├── docs/             # Individual summaries
+│   ├── videos/           # Research plan video summaries
+│   └── corpus/           # Research plan aggregations
+├── research_plans/        # Research configurations
+│   └── *.yaml           # Plan definitions
 ├── logs/                 # Processing logs
 │   └── ingest.jsonl      # Structured activity log
 ├── .env.example          # Configuration template

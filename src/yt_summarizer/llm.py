@@ -41,14 +41,34 @@ DEFAULT_EXECUTIVE_PROMPT = """Please create a comprehensive executive summary by
 
 Provide a clear, well-structured summary that captures the overall content and main themes."""
 
-# Allow customization via config
-def get_chunk_prompt_template() -> str:
-    """Get the chunk summarization prompt template."""
+# Allow customization via config and research plans
+def get_chunk_prompt_template(research_plan_prompt: str | None = None) -> str:
+    """Get the chunk summarization prompt template.
+    
+    Args:
+        research_plan_prompt: Optional custom prompt from research plan.
+        
+    Returns:
+        Prompt template to use for chunk summarization.
+    """
+    if research_plan_prompt:
+        return research_plan_prompt
+    
     import os
     return os.getenv("CHUNK_PROMPT_TEMPLATE", DEFAULT_CHUNK_PROMPT)
 
-def get_executive_prompt_template() -> str:
-    """Get the executive summary prompt template.""" 
+def get_executive_prompt_template(research_plan_prompt: str | None = None) -> str:
+    """Get the executive summary prompt template.
+    
+    Args:
+        research_plan_prompt: Optional custom prompt from research plan.
+        
+    Returns:
+        Prompt template to use for executive summarization.
+    """ 
+    if research_plan_prompt:
+        return research_plan_prompt
+    
     import os
     return os.getenv("EXECUTIVE_PROMPT_TEMPLATE", DEFAULT_EXECUTIVE_PROMPT)
 
@@ -88,13 +108,15 @@ def ensure_connection() -> bool:
         raise LLMConnectionError(f"Error checking Ollama connection: {e}")
 
 
-def summarise_chunk(chunk: str, model: str | None = None) -> str:
+def summarise_chunk(chunk: str, model: str | None = None, research_plan_prompt: str | None = None, research_context: str | None = None) -> str:
     """
     Summarize a single chunk of transcript text.
     
     Args:
         chunk: The text chunk to summarize.
         model: Optional model name, defaults to config.OLLAMA_MODEL.
+        research_plan_prompt: Optional custom prompt from research plan.
+        research_context: Optional research plan description for context.
         
     Returns:
         The generated summary.
@@ -105,7 +127,17 @@ def summarise_chunk(chunk: str, model: str | None = None) -> str:
     if model is None:
         model = config.OLLAMA_MODEL
         
-    prompt = get_chunk_prompt_template().format(chunk=chunk)
+    base_prompt = get_chunk_prompt_template(research_plan_prompt)
+    
+    # Add research context if provided
+    if research_context:
+        contextualized_prompt = f"""RESEARCH CONTEXT: {research_context}
+
+{base_prompt}"""
+    else:
+        contextualized_prompt = base_prompt
+        
+    prompt = contextualized_prompt.format(chunk=chunk)
     
     try:
         # Try using the official ollama client first
@@ -141,13 +173,15 @@ def summarise_chunk(chunk: str, model: str | None = None) -> str:
         raise LLMError(f"Failed to summarize chunk: {e}")
 
 
-def summarise_transcript(chunk_summaries: List[str], model: str | None = None) -> str:
+def summarise_transcript(chunk_summaries: List[str], model: str | None = None, research_plan_prompt: str | None = None, research_context: str | None = None) -> str:
     """
     Generate an executive summary from multiple chunk summaries.
     
     Args:
         chunk_summaries: List of individual chunk summaries.
         model: Optional model name, defaults to config.OLLAMA_MODEL.
+        research_plan_prompt: Optional custom prompt from research plan.
+        research_context: Optional research plan description for context.
         
     Returns:
         The executive summary.
@@ -158,8 +192,18 @@ def summarise_transcript(chunk_summaries: List[str], model: str | None = None) -
     if model is None:
         model = config.OLLAMA_MODEL
         
+    base_prompt = get_executive_prompt_template(research_plan_prompt)
+    
+    # Add research context if provided
+    if research_context:
+        contextualized_prompt = f"""RESEARCH CONTEXT: {research_context}
+
+{base_prompt}"""
+    else:
+        contextualized_prompt = base_prompt
+        
     bullet_summaries = "\n\n".join(chunk_summaries)
-    prompt = get_executive_prompt_template().format(bullet_summaries=bullet_summaries)
+    prompt = contextualized_prompt.format(bullet_summaries=bullet_summaries)
     
     try:
         # Try using the official ollama client first

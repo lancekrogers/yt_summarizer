@@ -1,0 +1,49 @@
+output:
+  corpus_dir: data/corpus/
+  corpus_filename: '{research_plan_name}.md'
+  corpus_summary_filename: '{research_plan_name}_summary.md'
+  video_filename_pattern: '{title}_{video_id}.md'
+  video_summaries_dir: data/videos/
+prompts:
+  chunk_prompt: 'You are analyzing YouTube video transcripts for focused content extraction.
+
+    Extract and summarize only the relevant content from this transcript chunk:
+
+
+    {chunk}
+
+
+    Focus on the specific topics and information relevant to the research plan.'
+  corpus_chunk_prompt: 'You are analyzing a collection of research summaries from
+    multiple videos.
+
+    Identify patterns, themes, and insights from this content:
+
+
+    {chunk}
+
+
+    Focus on connections and recurring themes across the research corpus.'
+  corpus_executive_prompt: 'Create a comprehensive analysis of the research corpus
+    by synthesizing these insights:
+
+
+    {bullet_summaries}
+
+
+    Organize findings by themes, highlight key patterns, and provide actionable insights.'
+  executive_prompt: 'Create a comprehensive summary by combining these extracted content
+    sections:
+
+
+    {bullet_summaries}
+
+
+    Provide a clear, well-structured summary that captures the key information and
+    themes.'
+research_plan:
+  description: Extract llm prompts mentioned in the transcript
+  name: Extract llm prompts from video
+videos:
+  list_file: videos.txt
+  urls: []

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import logging
 from pathlib import Path
-from typing import NamedTuple
+from typing import NamedTuple, Optional, TYPE_CHECKING
 
 from yaspin import yaspin
 
@@ -23,6 +23,9 @@ from .transcript import (
     chunk_text
 )
 from .utils import save_markdown, log_ingest, slugify, get_available_version
+
+if TYPE_CHECKING:
+    from .research_plan import ResearchPlanConfig
 
 logger = logging.getLogger(__name__)
 
@@ -50,7 +53,8 @@ def process_single_video(
     url_or_id: str,
     model: str | None = None,
     use_cache: bool = True,
-    auto_overwrite: bool = False
+    auto_overwrite: bool = False,
+    research_plan: Optional['ResearchPlanConfig'] = None
 ) -> ProcessingResult:
     """
     Process a single video from URL/ID to markdown summary.
@@ -60,6 +64,7 @@ def process_single_video(
         model: LLM model to use, defaults to config.OLLAMA_MODEL.
         use_cache: Whether to use cached transcripts.
         auto_overwrite: Whether to overwrite existing files automatically.
+        research_plan: Optional research plan for focused content extraction.
         
     Returns:
         ProcessingResult with outcome details.
@@ -77,34 +82,49 @@ def process_single_video(
             transcript_data = fetch_transcript(video_id, use_cache=use_cache)
             spinner.ok("✓")
         
-        # Create slug for filename
-        slug = slugify(transcript_data.title)
-        
-        # Check if output file already exists
-        output_path = config.DOCS_DIR / f"{slug}.md"
-        if output_path.exists() and not auto_overwrite:
-            # For now, just use versioning - in the full CLI we'll prompt the user
-            version = get_available_version(slug)
-            if version:
-                slug = f"{slug}_{version}"
-                output_path = config.DOCS_DIR / f"{slug}.md"
+        # Determine output directory and filename based on research plan
+        if research_plan:
+            # Use research plan's video output directory
+            output_dir = research_plan.get_video_output_dir()
+            output_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Use research plan's filename pattern
+            filename = research_plan.get_video_filename(transcript_data.title, video_id)
+            output_path = output_dir / filename
+            slug = filename.replace('.md', '')
+        else:
+            # Traditional processing - use docs directory
+            slug = slugify(transcript_data.title)
+            output_path = config.DOCS_DIR / f"{slug}.md"
+            
+            # Check for existing files if not auto-overwrite
+            if output_path.exists() and not auto_overwrite:
+                version = get_available_version(slug)
+                if version:
+                    slug = f"{slug}_{version}"
+                    output_path = config.DOCS_DIR / f"{slug}.md"
         
         # Chunk the transcript
         chunks = chunk_text(transcript_data.text)
         logger.info(f"Split transcript into {len(chunks)} chunks")
         
-        # Process each chunk
+        # Process each chunk with research plan prompts if available
         chunk_summaries = []
+        chunk_prompt = research_plan.chunk_prompt if research_plan else None
+        research_context = research_plan.description if research_plan else None
+        
         with yaspin(text=f"Summarizing {len(chunks)} chunks...", color="yellow") as spinner:
             for i, chunk in enumerate(chunks, 1):
                 spinner.text = f"Summarizing chunk {i}/{len(chunks)}..."
-                summary = summarise_chunk(chunk, model)
+                summary = summarise_chunk(chunk, model, research_plan_prompt=chunk_prompt, research_context=research_context)
                 chunk_summaries.append(summary)
             spinner.ok("✓")
         
-        # Generate executive summary
+        # Generate executive summary with research plan prompts if available
+        executive_prompt = research_plan.executive_prompt if research_plan else None
+        
         with yaspin(text="Generating executive summary...", color="green") as spinner:
-            executive_summary = summarise_transcript(chunk_summaries, model)
+            executive_summary = summarise_transcript(chunk_summaries, model, research_plan_prompt=executive_prompt, research_context=research_context)
             spinner.ok("✓")
         
         # Save markdown file

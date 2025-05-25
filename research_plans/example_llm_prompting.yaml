@@ -1,0 +1,72 @@
+research_plan:
+  name: "LLM Prompting Techniques Research"
+  description: "Extract specific prompts and techniques from LLM-related videos to build a comprehensive prompting knowledge base"
+
+videos:
+  urls:
+    # Example video URLs - replace with your research videos
+    - "https://www.youtube.com/watch?v=dOxUroR57xs"  # Example: prompt engineering video
+    # Add more URLs as needed:
+    # - "https://www.youtube.com/watch?v=ANOTHER_VIDEO_ID"
+  list_file: "videolist.txt"  # Optional: path to a text file containing video URLs
+
+prompts:
+  chunk_prompt: |
+    You are reading YouTube transcripts from videos discussing LLM prompting techniques.
+    Your job is to identify and extract the specific prompts, prompt templates, and prompting strategies mentioned in this video.
+    
+    Focus ONLY on actionable prompting content:
+    - Exact prompt templates or examples
+    - Prompting strategies and techniques
+    - Best practices for prompt engineering
+    - Specific phrases or patterns that work well
+    
+    Remove any unrelated conversation, introductions, or general discussion.
+    
+    Transcript chunk:
+    {chunk}
+    
+    Extract only the prompts and techniques, not the surrounding conversation.
+    
+  executive_prompt: |
+    Combine these extracted prompting techniques into a coherent summary of all the specific prompts and techniques mentioned in this video:
+    
+    {bullet_summaries}
+    
+    Organize your summary into these sections:
+    1. **Specific Prompts**: Exact prompts or templates mentioned
+    2. **Prompting Strategies**: Techniques and approaches discussed  
+    3. **Best Practices**: Guidelines and recommendations provided
+    4. **Key Insights**: Notable findings or observations about prompting
+    
+  corpus_chunk_prompt: |
+    You are analyzing a collection of video summaries about LLM prompting techniques.
+    This corpus contains extracted prompts and strategies from multiple educational videos.
+    
+    Analyze this content to identify:
+    - Common patterns across videos
+    - Frequently mentioned techniques
+    - Unique or novel approaches
+    - Contradictions or different perspectives
+    
+    Content to analyze:
+    {chunk}
+    
+  corpus_executive_prompt: |
+    Create a comprehensive analysis of all the prompting techniques and insights gathered from multiple videos:
+    
+    {bullet_summaries}
+    
+    Provide a synthesis organized as:
+    1. **Most Common Techniques**: Approaches mentioned across multiple videos
+    2. **Unique Strategies**: Novel or less common techniques discovered
+    3. **Best Practices Synthesis**: Consolidated recommendations
+    4. **Effectiveness Patterns**: What seems to work best based on the corpus
+    5. **Research Gaps**: Areas that need more investigation
+
+output:
+  video_summaries_dir: "data/videos/"
+  corpus_dir: "data/corpus/"
+  video_filename_pattern: "{title}_{video_id}.md"
+  corpus_filename: "{research_plan_name}.md"
+  corpus_summary_filename: "{research_plan_name}_summary.md"

@@ -8,3 +8,4 @@ logs/*
 *__pycache__*
 videolist.txt
 .claude/
+CLAUDE.md

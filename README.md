@@ -284,7 +284,7 @@ youtube-summarizer/
 │   └── utils.py           # Utilities & markdown
 ├── data/                  # Generated content
 │   ├── raw/              # Cached transcripts (.txt)
-│   ├── docs/             # Individual summaries
+│   ├── docs/             # Individual video summaries
 │   ├── videos/           # Research plan video summaries
 │   └── corpus/           # Research plan aggregations
 ├── research_plans/        # Research configurations
@@ -299,7 +299,7 @@ youtube-summarizer/
 
 ## 📊 Output Format
 
-### Markdown Summaries (`docs/`)
+### Markdown Summaries (`data/docs/`)
 
 ```yaml
 ---
@@ -354,7 +354,7 @@ RATE_LIMIT_DELAY=2.0
 
 # Directories
 DATA_DIR=data
-DOCS_DIR=docs
+DOCS_DIR=data/docs
 LOGS_DIR=logs
 
 # Timeouts

@@ -30,7 +30,7 @@ class Config:
     # Directory settings
     DATA_DIR: Path = Path(os.getenv("DATA_DIR", "data"))
     RAW_DIR: Path = DATA_DIR / "raw"
-    DOCS_DIR: Path = Path(os.getenv("DOCS_DIR", "docs"))
+    DOCS_DIR: Path = Path(os.getenv("DOCS_DIR", "data/docs"))
     LOGS_DIR: Path = Path(os.getenv("LOGS_DIR", "logs"))
     
     # File settings

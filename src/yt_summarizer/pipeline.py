@@ -22,7 +22,7 @@ from .transcript import (
     fetch_transcript,
     chunk_text
 )
-from .utils import save_markdown, log_ingest, slugify, get_available_version
+from .utils import save_markdown, log_ingest, slugify, get_available_version, create_markdown_summary
 
 if TYPE_CHECKING:
     from .research_plan import ResearchPlanConfig
@@ -128,14 +128,28 @@ def process_single_video(
             spinner.ok("✓")
         
         # Save markdown file
-        output_path = save_markdown(
-            video_id=video_id,
-            title=transcript_data.title,
-            executive_summary=executive_summary,
-            chunk_summaries=chunk_summaries,
-            model=model,
-            slug=slug
-        )
+        if research_plan:
+            # For research plans, create the content and save to custom path
+            markdown_content = create_markdown_summary(
+                video_id=video_id,
+                title=transcript_data.title,
+                executive_summary=executive_summary,
+                chunk_summaries=chunk_summaries,
+                model=model,
+                slug=slug
+            )
+            # Write to the research plan's output path
+            output_path.write_text(markdown_content, encoding="utf-8")
+        else:
+            # For regular processing, use the standard save_markdown function
+            output_path = save_markdown(
+                video_id=video_id,
+                title=transcript_data.title,
+                executive_summary=executive_summary,
+                chunk_summaries=chunk_summaries,
+                model=model,
+                slug=slug
+            )
         
         # Log success
         log_ingest(

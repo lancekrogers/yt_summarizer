@@ -100,14 +100,25 @@ def _load_from_cache(video_id: str) -> str | None:
         video_id: YouTube video ID.
         
     Returns:
-        Cached transcript text or None if not cached.
+        Cached transcript text or None if not cached/empty.
     """
     cache_path = _get_cache_path(video_id)
     if cache_path.exists():
         try:
             text = cache_path.read_text(encoding="utf-8")
-            logger.debug(f"Loaded {video_id} from cache")
-            return text
+            # Check if the cached file has actual content
+            if text and text.strip():
+                logger.debug(f"Loaded {video_id} from cache")
+                return text
+            else:
+                logger.warning(f"Cache file for {video_id} is empty, will fetch fresh transcript")
+                # Optionally remove the empty cache file
+                try:
+                    cache_path.unlink()
+                    logger.debug(f"Removed empty cache file for {video_id}")
+                except:
+                    pass
+                return None
         except Exception as e:
             logger.warning(f"Failed to read cache for {video_id}: {e}")
     
@@ -122,6 +133,11 @@ def _save_to_cache(video_id: str, text: str) -> None:
         video_id: YouTube video ID.
         text: Transcript text to cache.
     """
+    # Don't save empty transcripts
+    if not text or not text.strip():
+        logger.warning(f"Refusing to cache empty transcript for {video_id}")
+        return
+        
     config.create_directories()
     cache_path = _get_cache_path(video_id)
     
@@ -188,60 +204,83 @@ def fetch_transcript(video_id: str, use_cache: bool = True) -> TranscriptData:
                 text=cached_text,
                 cached=True
             )
+        else:
+            logger.debug(f"No cached transcript found for {video_id}, fetching from YouTube")
     
     # Apply rate limiting before making request
     _rate_limit()
     
-    try:
-        logger.info(f"Fetching transcript for video {video_id}")
-        
-        # Fetch transcript (prefers manual captions over auto-generated)
-        transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-        
-        try:
-            # Try to get manually created transcript first
-            transcript = transcript_list.find_manually_created_transcript(['en'])
-            logger.debug(f"Using manual transcript for {video_id}")
-        except:
-            try:
-                # Fall back to auto-generated transcript
-                transcript = transcript_list.find_generated_transcript(['en'])
-                logger.debug(f"Using auto-generated transcript for {video_id}")
-            except:
-                # Try any available transcript
-                transcript = transcript_list[0]
-                logger.debug(f"Using first available transcript for {video_id}")
-        
-        # Get the actual transcript data
-        transcript_data = transcript.fetch()
-        
-        # Format as plain text
-        formatter = TextFormatter()
-        text = formatter.format_transcript(transcript_data)
-        
-        # Get video title
-        title = fetch_video_title(video_id)
-        
-        # Save to cache if enabled
-        if use_cache:
-            _save_to_cache(video_id, text)
-        
-        logger.info(f"Successfully fetched transcript for {video_id}")
-        
-        return TranscriptData(
-            video_id=video_id,
-            title=title,
-            text=text,
-            cached=False
-        )
-        
-    except NoTranscriptFound:
-        logger.warning(f"No transcript available for video {video_id}")
-        raise NoTranscriptAvailable(f"No transcript available for video {video_id}")
+    # Retry logic for transient errors
+    max_retries = 2
+    retry_count = 0
     
-    except Exception as e:
-        logger.error(f"Failed to fetch transcript for {video_id}: {e}")
-        raise TranscriptError(f"Failed to fetch transcript for {video_id}: {e}")
+    while retry_count <= max_retries:
+        try:
+            logger.info(f"Fetching transcript for video {video_id} from YouTube API" + (f" (attempt {retry_count + 1}/{max_retries + 1})" if retry_count > 0 else ""))
+            
+            # Fetch transcript (prefers manual captions over auto-generated)
+            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            
+            try:
+                # Try to get manually created transcript first
+                transcript = transcript_list.find_manually_created_transcript(['en'])
+                logger.debug(f"Using manual transcript for {video_id}")
+            except:
+                try:
+                    # Fall back to auto-generated transcript
+                    transcript = transcript_list.find_generated_transcript(['en'])
+                    logger.debug(f"Using auto-generated transcript for {video_id}")
+                except:
+                    # Try any available transcript
+                    transcript = transcript_list[0]
+                    logger.debug(f"Using first available transcript for {video_id}")
+            
+            # Get the actual transcript data
+            transcript_data = transcript.fetch()
+            
+            # Format as plain text
+            formatter = TextFormatter()
+            text = formatter.format_transcript(transcript_data)
+            
+            # Validate we got actual content
+            if not text or not text.strip():
+                raise TranscriptError(f"Received empty transcript for video {video_id}")
+            
+            # Get video title
+            title = fetch_video_title(video_id)
+            
+            # Save to cache if enabled
+            if use_cache:
+                _save_to_cache(video_id, text)
+            
+            logger.info(f"Successfully fetched transcript for {video_id}")
+            
+            return TranscriptData(
+                video_id=video_id,
+                title=title,
+                text=text,
+                cached=False
+            )
+            
+        except NoTranscriptFound:
+            logger.warning(f"No transcript available for video {video_id}")
+            raise NoTranscriptAvailable(f"No transcript available for video {video_id}")
+        
+        except Exception as e:
+            error_str = str(e).lower()
+            # Check for XML parsing errors that might be transient
+            if "no element found" in error_str or "xml" in error_str:
+                retry_count += 1
+                if retry_count <= max_retries:
+                    logger.warning(f"XML parsing error for video {video_id}, retrying in {retry_count * 2} seconds...")
+                    time.sleep(retry_count * 2)  # Exponential backoff
+                    continue
+            
+            logger.error(f"Failed to fetch transcript for {video_id}: {type(e).__name__}: {e}")
+            # Add more context to XML parsing errors
+            if "no element found" in error_str:
+                logger.error(f"XML parsing error - YouTube may have returned an empty or malformed response for video {video_id}")
+            raise TranscriptError(f"Failed to fetch transcript for {video_id}: {e}")
 
 
 def chunk_text(text: str, max_tokens: int | None = None) -> list[str]:

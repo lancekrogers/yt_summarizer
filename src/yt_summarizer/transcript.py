@@ -159,8 +159,8 @@ def fetch_video_title(video_id: str) -> str:
         Video title or video_id as fallback.
     """
     try:
-        # Use YouTube's oembed API to get video metadata
-        url = f"https://www.youtube.com/oembed?url=https://www.youtube.com/watch?v={video_id}&format=json"
+        # Use YouTube's oembed API with shortened URL format for better reliability
+        url = f"https://www.youtube.com/oembed?url=https://youtu.be/{video_id}&format=json"
         
         response = requests.get(url, timeout=config.YOUTUBE_TIMEOUT)
         response.raise_for_status()

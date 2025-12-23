@@ -26,6 +26,9 @@ _VIDEO_ID_RE = re.compile(r"(?:watch\?v=|youtu\.be/|embed/)([\w\-]{11})")
 # Rate limiting
 _last_request_time = 0.0
 
+# YouTube API instance (v1.2.0+ requires instance methods)
+_yt_api = YouTubeTranscriptApi()
+
 
 class TranscriptData(NamedTuple):
     """Container for transcript data."""
@@ -219,7 +222,7 @@ def fetch_transcript(video_id: str, use_cache: bool = True) -> TranscriptData:
             logger.info(f"Fetching transcript for video {video_id} from YouTube API" + (f" (attempt {retry_count + 1}/{max_retries + 1})" if retry_count > 0 else ""))
             
             # Fetch transcript (prefers manual captions over auto-generated)
-            transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+            transcript_list = _yt_api.list(video_id)
             
             try:
                 # Try to get manually created transcript first

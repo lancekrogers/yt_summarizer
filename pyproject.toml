@@ -6,7 +6,7 @@ authors = ["Lance"]
 
 [tool.poetry.dependencies]
 python = ">=3.11,<3.14"
-youtube-transcript-api = "^1.0.3"
+youtube-transcript-api = "^1.2.3"
 requests = "^2.32"
 ollama = "^0.3.0"
 questionary = "^2.0.0"

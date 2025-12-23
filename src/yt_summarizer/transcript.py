@@ -286,41 +286,64 @@ def fetch_transcript(video_id: str, use_cache: bool = True) -> TranscriptData:
             raise TranscriptError(f"Failed to fetch transcript for {video_id}: {e}")
 
 
-def chunk_text(text: str, max_tokens: int | None = None) -> list[str]:
+def chunk_text(text: str, max_tokens: int | None = None, overlap: int | None = None) -> list[str]:
     """
     Split text into chunks suitable for LLM processing.
-    
+
     Args:
         text: Text to chunk.
         max_tokens: Maximum tokens per chunk, defaults to config.CHUNK_SIZE.
-        
+        overlap: Token overlap between chunks, defaults to config.CHUNK_OVERLAP.
+
     Returns:
         List of text chunks.
     """
     if max_tokens is None:
         max_tokens = config.CHUNK_SIZE
-    
-    chunks = []
-    current_tokens = 0
-    current_lines = []
-    
+    if overlap is None:
+        overlap = config.CHUNK_OVERLAP
+
+    # Build list of (line, token_count) tuples
+    lines_with_tokens = []
     for line in text.splitlines():
         # Rough token estimation (words * 1.3)
         line_tokens = int(len(line.split()) * 1.3)
-        
+        lines_with_tokens.append((line, line_tokens))
+
+    chunks = []
+    current_tokens = 0
+    current_lines = []
+    chunk_start_idx = 0
+
+    for idx, (line, line_tokens) in enumerate(lines_with_tokens):
         if current_tokens + line_tokens > max_tokens and current_lines:
-            # Start new chunk
+            # Save current chunk
             chunks.append("\n".join(current_lines))
-            current_lines = [line]
-            current_tokens = line_tokens
+
+            # Calculate overlap: find lines from end of chunk that fit in overlap budget
+            if overlap > 0:
+                overlap_lines = []
+                overlap_tokens = 0
+                for prev_line, prev_tokens in reversed(list(zip(current_lines, [t for _, t in lines_with_tokens[chunk_start_idx:idx]]))):
+                    if overlap_tokens + prev_tokens <= overlap:
+                        overlap_lines.insert(0, prev_line)
+                        overlap_tokens += prev_tokens
+                    else:
+                        break
+                current_lines = overlap_lines + [line]
+                current_tokens = overlap_tokens + line_tokens
+            else:
+                current_lines = [line]
+                current_tokens = line_tokens
+            chunk_start_idx = idx
         else:
             current_lines.append(line)
             current_tokens += line_tokens
-    
+
     # Add final chunk if any content remains
     if current_lines:
         chunks.append("\n".join(current_lines))
-    
+
     return chunks
 
 

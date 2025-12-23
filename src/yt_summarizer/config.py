@@ -23,8 +23,15 @@ class Config:
     OLLAMA_URL: str = os.getenv("OLLAMA_URL", "http://localhost:11434")
     OLLAMA_MODEL: str = os.getenv("OLLAMA_MODEL", "llama3.2:latest")
     
+    # Model context settings
+    # Context window size of your LLM (used for reference/validation)
+    CONTEXT_WINDOW: int = int(os.getenv("CONTEXT_WINDOW", "120000"))
+
     # Processing settings
+    # Chunk size should be ~25-50% of context window to leave room for prompt + response
     CHUNK_SIZE: int = int(os.getenv("CHUNK_SIZE", "2048"))
+    # Overlap between chunks for better context continuity (0 = no overlap)
+    CHUNK_OVERLAP: int = int(os.getenv("CHUNK_OVERLAP", "200"))
     RATE_LIMIT_DELAY: float = float(os.getenv("RATE_LIMIT_DELAY", "2.0"))
     
     # Directory settings

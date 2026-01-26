@@ -146,11 +146,13 @@ class ResearchPlanConfig:
     
     def get_video_output_dir(self) -> Path:
         """Get the resolved video summaries output directory."""
-        return Path(self.video_summaries_dir)
-    
+        from .config import resolve_path
+        return resolve_path(self.video_summaries_dir, config.DATA_DIR.parent)
+
     def get_corpus_output_dir(self) -> Path:
         """Get the resolved corpus output directory."""
-        return Path(self.corpus_dir)
+        from .config import resolve_path
+        return resolve_path(self.corpus_dir, config.DATA_DIR.parent)
     
     def get_corpus_filename(self) -> str:
         """Get the resolved corpus filename."""
@@ -200,13 +202,17 @@ class ResearchPlanConfig:
                 file_path = Path(self.video_list_file)
                 
                 if not file_path.is_absolute():
+                    from .config import get_config_dir
+
                     # Try multiple locations for relative paths
                     search_paths = [
                         # 1. Relative to current working directory
                         Path.cwd() / self.video_list_file,
-                        # 2. Relative to project root (look for common project indicators)
+                        # 2. Relative to XDG config directory
+                        get_config_dir() / self.video_list_file,
+                        # 3. Relative to project root (look for common project indicators)
                         self._find_project_root() / self.video_list_file,
-                        # 3. In the research_plans directory
+                        # 4. In the research_plans directory (legacy)
                         Path("research_plans").parent / self.video_list_file,
                     ]
                     
@@ -243,39 +249,50 @@ class ResearchPlanConfig:
     
     def _find_project_root(self) -> Path:
         """Find the project root directory by looking for common indicators."""
+        from .config import get_config_dir
+
         current = Path.cwd()
-        
+
+        # First check if we have a config directory with research plans
+        config_dir = get_config_dir()
+        if (config_dir / "research_plans").exists():
+            return config_dir
+
         # Look for common project files/directories
         project_indicators = [
             "pyproject.toml",
-            "poetry.lock", 
+            "poetry.lock",
             "requirements.txt",
             "setup.py",
             ".git",
             "research_plans",
             "src"
         ]
-        
+
         # Walk up the directory tree
         for parent in [current] + list(current.parents):
             for indicator in project_indicators:
                 if (parent / indicator).exists():
                     return parent
-        
+
         # If no project root found, return current directory
         return current
 
 
 class ResearchPlanManager:
     """Manager for research plan operations."""
-    
+
     def __init__(self, plans_dir: Optional[Union[str, Path]] = None):
         """Initialize the research plan manager.
-        
+
         Args:
-            plans_dir: Directory containing research plans. Defaults to research_plans.
+            plans_dir: Directory containing research plans.
+                       Defaults to config.RESEARCH_PLANS_DIR.
         """
-        self.plans_dir = Path(plans_dir) if plans_dir else Path("research_plans")
+        if plans_dir:
+            self.plans_dir = Path(plans_dir)
+        else:
+            self.plans_dir = config.RESEARCH_PLANS_DIR
         self.plans_dir.mkdir(parents=True, exist_ok=True)
     
     def list_plans(self) -> List[str]:

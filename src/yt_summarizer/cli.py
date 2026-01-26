@@ -14,11 +14,82 @@ from typing import List
 import questionary
 from yaspin import yaspin
 
-from .config import config
+from .config import config, CONFIG_DIR, CONFIG_FILE, create_default_config
 from .llm import LLMConnectionError, ensure_connection
 from .pipeline import check_prerequisites, process_video_list, process_single_video
 from .transcript import clear_cache, get_cache_stats, extract_video_id, TranscriptError
 from .utils import read_video_list, format_file_size
+
+
+def ensure_initialized() -> bool:
+    """Ensure config directory and default config exist.
+
+    Creates XDG-compliant configuration directory and default config.yaml
+    on first run.
+
+    Returns:
+        True if this is the first run, False otherwise.
+    """
+    first_run = not CONFIG_DIR.exists()
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+
+    if not CONFIG_FILE.exists():
+        create_default_config()
+
+    return first_run
+
+
+def check_migration_needed() -> None:
+    """Check if user has legacy data that should be migrated.
+
+    Prompts user to migrate data from current working directory to
+    XDG-compliant configuration location if legacy data is detected.
+    """
+    from .migrate import detect_legacy_data, is_migration_needed, migrate_legacy_data, get_migration_summary
+
+    legacy = detect_legacy_data()
+    if not is_migration_needed(legacy, CONFIG_DIR):
+        return
+
+    # Show what was detected
+    summary = get_migration_summary(legacy)
+    print("\n[yellow]Legacy data detected in current directory:[/yellow]".replace("[yellow]", "").replace("[/yellow]", ""))
+
+    for name, count in summary.items():
+        print(f"  - {name}/ ({count} files)")
+
+    print(f"\nNew configuration location: {CONFIG_DIR}")
+
+    choice = questionary.select(
+        "How would you like to handle existing data?",
+        choices=[
+            "Move data to new location (recommended)",
+            "Copy data to new location",
+            "Skip migration (continue using current directory)"
+        ]
+    ).ask()
+
+    if not choice or "Skip" in choice:
+        print("Skipping migration. Data will remain in current directory.")
+        print("Note: You can migrate manually later or set DATA_DIR in config.yaml")
+        return
+
+    copy_mode = "Copy" in choice
+    result = migrate_legacy_data(legacy, CONFIG_DIR, copy=copy_mode)
+
+    if result.success:
+        action = "Copied" if copy_mode else "Moved"
+        print(f"\n✅ {action} {len(result.moved)} directories to {CONFIG_DIR}")
+        for source, target in result.moved:
+            print(f"   {source.name}/ → {target}")
+    elif result.partial_success:
+        print(f"\n⚠️  Partial migration: {len(result.moved)} succeeded, {len(result.errors)} failed")
+        for source, error in result.errors:
+            print(f"   ❌ {source}: {error}")
+    else:
+        print(f"\n❌ Migration failed:")
+        for source, error in result.errors:
+            print(f"   {source}: {error}")
 
 
 def startup_check() -> bool:
@@ -28,6 +99,17 @@ def startup_check() -> bool:
     Returns:
         True if all checks pass, False otherwise.
     """
+    # First-run initialization
+    first_run = ensure_initialized()
+
+    if first_run:
+        print("🎉 Welcome to YouTube Summarizer!")
+        print(f"📁 Configuration created at: {CONFIG_DIR}")
+        print(f"📝 Edit {CONFIG_FILE.name} to customize settings.\n")
+
+    # Check for legacy data migration
+    check_migration_needed()
+
     print("🚀 YouTube Summarizer Starting Up...")
 
     try:

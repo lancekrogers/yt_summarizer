@@ -5,8 +5,8 @@ description = "Batch grabs YouTube transcripts and summarizes them with Ollama"
 authors = ["Lance"]
 
 [tool.poetry.dependencies]
-python = ">=3.11,<3.14"
-youtube-transcript-api = "^1.0.3"
+python = ">=3.11,<4.0"
+youtube-transcript-api = "^1.2.3"
 requests = "^2.32"
 ollama = "^0.3.0"
 questionary = "^2.0.0"

@@ -16,22 +16,22 @@ all: format check types
 # Format code with black
 [no-cd]
 format:
-    poetry run black {{src_dir}} {{test_dir}}
+    uv run black {{src_dir}} {{test_dir}}
 
 # Check formatting without changes
 [no-cd]
 format-check:
-    poetry run black --check {{src_dir}} {{test_dir}}
+    uv run black --check {{src_dir}} {{test_dir}}
 
 # Run type checking with mypy
 [no-cd]
 types:
-    poetry run mypy {{src_dir}}
+    uv run mypy {{src_dir}}
 
 # Run type checking with verbose output
 [no-cd]
 types-verbose:
-    poetry run mypy {{src_dir}} --show-error-codes --pretty
+    uv run mypy {{src_dir}} --show-error-codes --pretty
 
 # Run all checks (format + types) without modifications
 [no-cd]

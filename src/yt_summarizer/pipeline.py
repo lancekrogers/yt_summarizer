@@ -22,7 +22,7 @@ from .transcript import (
     fetch_transcript,
     chunk_text
 )
-from .utils import save_markdown, log_ingest, slugify, get_available_version, create_markdown_summary
+from .utils import save_markdown, log_ingest, slugify, get_available_version, get_available_version_in_dir, create_markdown_summary
 
 if TYPE_CHECKING:
     from .research_plan import ResearchPlanConfig
@@ -54,7 +54,8 @@ def process_single_video(
     model: str | None = None,
     use_cache: bool = True,
     auto_overwrite: bool = False,
-    research_plan: Optional['ResearchPlanConfig'] = None
+    research_plan: Optional['ResearchPlanConfig'] = None,
+    output_dir: Optional[Path] = None
 ) -> ProcessingResult:
     """
     Process a single video from URL/ID to markdown summary.
@@ -82,21 +83,36 @@ def process_single_video(
             transcript_data = fetch_transcript(video_id, use_cache=use_cache)
             spinner.ok("✓")
         
-        # Determine output directory and filename based on research plan
-        if research_plan:
-            # Use research plan's video output directory
-            output_dir = research_plan.get_video_output_dir()
+        # Determine output directory and filename
+        if output_dir:
+            # Custom output directory overrides all defaults
             output_dir.mkdir(parents=True, exist_ok=True)
-            
+            if research_plan:
+                filename = research_plan.get_video_filename(transcript_data.title, video_id)
+                slug = filename.replace('.md', '')
+            else:
+                slug = slugify(transcript_data.title)
+                filename = f"{slug}.md"
+            output_path = output_dir / filename
+            if output_path.exists() and not auto_overwrite:
+                version = get_available_version_in_dir(slug, output_dir)
+                if version:
+                    slug = f"{slug}_{version}"
+                    output_path = output_dir / f"{slug}.md"
+        elif research_plan:
+            # Use research plan's video output directory
+            rp_output_dir = research_plan.get_video_output_dir()
+            rp_output_dir.mkdir(parents=True, exist_ok=True)
+
             # Use research plan's filename pattern
             filename = research_plan.get_video_filename(transcript_data.title, video_id)
-            output_path = output_dir / filename
+            output_path = rp_output_dir / filename
             slug = filename.replace('.md', '')
         else:
             # Traditional processing - use docs directory
             slug = slugify(transcript_data.title)
             output_path = config.DOCS_DIR / f"{slug}.md"
-            
+
             # Check for existing files if not auto-overwrite
             if output_path.exists() and not auto_overwrite:
                 version = get_available_version(slug)
@@ -128,8 +144,8 @@ def process_single_video(
             spinner.ok("✓")
         
         # Save markdown file
-        if research_plan:
-            # For research plans, create the content and save to custom path
+        if output_dir or research_plan:
+            # Write directly to the resolved output_path
             markdown_content = create_markdown_summary(
                 video_id=video_id,
                 title=transcript_data.title,
@@ -138,7 +154,6 @@ def process_single_video(
                 model=model,
                 slug=slug
             )
-            # Write to the research plan's output path
             output_path.write_text(markdown_content, encoding="utf-8")
         else:
             # For regular processing, use the standard save_markdown function
@@ -262,7 +277,8 @@ def process_video_list(
     video_urls: list[str],
     model: str | None = None,
     use_cache: bool = True,
-    auto_overwrite: bool = False
+    auto_overwrite: bool = False,
+    output_dir: Optional[Path] = None
 ) -> ProcessingStats:
     """
     Process a list of video URLs/IDs.
@@ -292,7 +308,8 @@ def process_video_list(
             url_or_id=url_or_id,
             model=model,
             use_cache=use_cache,
-            auto_overwrite=auto_overwrite
+            auto_overwrite=auto_overwrite,
+            output_dir=output_dir
         )
         
         if result.success:

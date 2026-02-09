@@ -1,28 +1,30 @@
-[tool.poetry]
+[project]
 name = "yt-summarizer"
 version = "0.1.0"
 description = "Batch grabs YouTube transcripts and summarizes them with Ollama"
-authors = ["Lance"]
+authors = [{name = "Lance"}]
+requires-python = ">=3.11"
+dependencies = [
+    "youtube-transcript-api>=1.2.3",
+    "requests>=2.32",
+    "ollama>=0.3.0",
+    "questionary>=2.0.0",
+    "yaspin>=3.0.0",
+    "python-dotenv>=1.0.0",
+    "pyyaml>=6.0.0",
+]
 
-[tool.poetry.dependencies]
-python = ">=3.11,<4.0"
-youtube-transcript-api = "^1.2.3"
-requests = "^2.32"
-ollama = "^0.3.0"
-questionary = "^2.0.0"
-yaspin = "^3.0.0"
-python-dotenv = "^1.0.0"
-pyyaml = "^6.0.0"
-
-[tool.poetry.group.dev.dependencies]
-pytest = "^8.3.4"
-pytest-cov = "^6.0.0"
-pytest-mock = "^3.14.0"
-black = "^24.10.0"
-mypy = "^1.13.0"
-
-[tool.poetry.scripts]
+[project.scripts]
 yt-summarizer = "yt_summarizer.cli:main"
+
+[dependency-groups]
+dev = [
+    "pytest>=8.3.4",
+    "pytest-cov>=6.0.0",
+    "pytest-mock>=3.14.0",
+    "black>=24.10.0",
+    "mypy>=1.13.0",
+]
 
 [tool.pytest.ini_options]
 minversion = "6.0"
@@ -33,5 +35,8 @@ python_classes = ["Test*"]
 python_functions = ["test_*"]
 
 [build-system]
-requires = ["poetry-core"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/yt_summarizer"]

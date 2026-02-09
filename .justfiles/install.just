@@ -10,7 +10,7 @@ default:
 # Install for development (editable)
 [no-cd]
 dev:
-    poetry install
+    uv sync
 
 # Install system-wide via pipx (recommended)
 [no-cd]
@@ -51,14 +51,14 @@ pip-uninstall:
 # Build distribution packages
 [no-cd]
 build:
-    poetry build
+    uv build
     @echo "✅ Built packages in dist/"
     @ls -la dist/
 
 # Publish to PyPI (requires auth)
 [no-cd]
 publish:
-    poetry publish
+    uv publish
 
 # Check if installed and show version
 [no-cd]

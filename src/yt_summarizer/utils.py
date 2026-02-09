@@ -185,22 +185,36 @@ def check_file_exists(file_path: Path) -> bool:
 def get_available_version(base_slug: str) -> str:
     """
     Get the next available version suffix for a slug.
-    
+
     Args:
         base_slug: Base slug name.
-        
+
     Returns:
         Version suffix (e.g., "v2", "v3") or empty string for first version.
     """
-    base_path = config.DOCS_DIR / f"{base_slug}.md"
-    
+    return get_available_version_in_dir(base_slug, config.DOCS_DIR)
+
+
+def get_available_version_in_dir(base_slug: str, directory: Path) -> str:
+    """
+    Get the next available version suffix for a slug in a given directory.
+
+    Args:
+        base_slug: Base slug name.
+        directory: Directory to check for existing files.
+
+    Returns:
+        Version suffix (e.g., "v2", "v3") or empty string for first version.
+    """
+    base_path = directory / f"{base_slug}.md"
+
     if not base_path.exists():
         return ""
-    
+
     # Find next available version
     version = 2
     while True:
-        versioned_path = config.DOCS_DIR / f"{base_slug}_v{version}.md"
+        versioned_path = directory / f"{base_slug}_v{version}.md"
         if not versioned_path.exists():
             return f"v{version}"
         version += 1

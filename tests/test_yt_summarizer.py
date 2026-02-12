@@ -136,10 +136,11 @@ class TestFormatFileSize:
 class TestConfig:
     """Test configuration functionality."""
     
-    def test_default_values(self):
+    @patch('yt_summarizer.config.load_yaml_config', return_value={})
+    def test_default_values(self, _mock_yaml):
         """Test that default configuration values are set correctly."""
         config = Config()
-        
+
         assert config.OLLAMA_URL == "http://localhost:11434"
         assert config.OLLAMA_MODEL == "llama3.2:latest"
         assert config.CHUNK_SIZE == 2048
@@ -187,11 +188,12 @@ class TestLLMConnection:
     @patch('yt_summarizer.llm.requests.get')
     def test_ensure_connection_success(self, mock_get):
         """Test successful connection to Ollama."""
+        from yt_summarizer.config import config as cfg
         mock_response = Mock()
         mock_response.raise_for_status.return_value = None
-        mock_response.json.return_value = {"models": [{"name": "llama3.2:latest"}]}
+        mock_response.json.return_value = {"models": [{"name": cfg.OLLAMA_MODEL}]}
         mock_get.return_value = mock_response
-        
+
         result = ensure_connection()
         assert result is True
     

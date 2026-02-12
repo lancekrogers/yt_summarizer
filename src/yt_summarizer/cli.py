@@ -92,9 +92,12 @@ def check_migration_needed() -> None:
             print(f"   {source}: {error}")
 
 
-def startup_check() -> bool:
+def startup_check(quiet: bool = False) -> bool:
     """
     Perform startup checks and display results.
+
+    Args:
+        quiet: If True, skip interactive prompts (migration check) and welcome messages.
 
     Returns:
         True if all checks pass, False otherwise.
@@ -102,22 +105,25 @@ def startup_check() -> bool:
     # First-run initialization
     first_run = ensure_initialized()
 
-    if first_run:
+    if first_run and not quiet:
         print("🎉 Welcome to YouTube Summarizer!")
         print(f"📁 Configuration created at: {CONFIG_DIR}")
         print(f"📝 Edit {CONFIG_FILE.name} to customize settings.\n")
 
-    # Check for legacy data migration
-    check_migration_needed()
+    # Check for legacy data migration (interactive only)
+    if not quiet:
+        check_migration_needed()
 
-    print("🚀 YouTube Summarizer Starting Up...")
+    if not quiet:
+        print("🚀 YouTube Summarizer Starting Up...")
 
     try:
         return check_prerequisites()
     except LLMConnectionError as e:
         print(f"❌ {e}")
-        print("\n💡 Make sure Ollama is running:")
-        print("   ollama serve")
+        if not quiet:
+            print("\n💡 Make sure Ollama is running:")
+            print("   ollama serve")
         return False
     except Exception as e:
         print(f"❌ Unexpected startup error: {e}")
@@ -939,52 +945,302 @@ def interactive_main() -> None:
     print("\n👋 Thanks for using YouTube Summarizer!")
 
 
-def legacy_main() -> None:
-    """Legacy CLI for backwards compatibility."""
-    parser = argparse.ArgumentParser(
-        description="YouTube transcript → Ollama summary",
-        epilog="For interactive mode, run without arguments",
-    )
-    parser.add_argument("list_file", nargs="?", help="Text file of YouTube URLs/IDs")
-    parser.add_argument("--model", default=config.OLLAMA_MODEL, help="Ollama model tag")
-    parser.add_argument(
-        "--interactive",
-        action="store_true",
-        help="Use interactive mode (default if no list_file provided)",
-    )
-
-    args = parser.parse_args()
-
-    # If no list file provided or interactive flag set, use interactive mode
-    if not args.list_file or args.interactive:
-        interactive_main()
-        return
-
-    # Legacy mode: direct file processing
-    print("📼→📝 YouTube Summarizer (Legacy Mode)")
-
-    if not startup_check():
+def _handle_summarize(args: argparse.Namespace) -> None:
+    """Handle the 'summarize' subcommand."""
+    if not args.url and not args.file:
+        print("Error: provide a YouTube URL or --file with a video list\n")
+        print("Usage:")
+        print("  yt-summarizer summarize <url>")
+        print("  yt-summarizer summarize -f videos.txt")
+        print("  yt-summarizer summarize <url> -o ./output/")
+        print("\nRun 'yt-summarizer summarize --help' for all options.")
         sys.exit(1)
 
-    try:
-        videos = read_video_list(Path(args.list_file))
-        stats = process_video_list(videos, model=args.model)
+    if not startup_check(quiet=True):
+        sys.exit(1)
 
-        if stats.failed > 0:
+    output_dir = Path(args.output) if args.output else None
+    model = args.model
+    use_cache = not args.no_cache
+    auto_overwrite = args.overwrite
+
+    try:
+        if args.file:
+            videos = read_video_list(Path(args.file))
+            if args.url:
+                videos.insert(0, args.url)
+            stats = process_video_list(
+                video_urls=videos,
+                model=model,
+                use_cache=use_cache,
+                auto_overwrite=auto_overwrite,
+                output_dir=output_dir,
+            )
+            sys.exit(0 if stats.failed == 0 else 1)
+        else:
+            result = process_single_video(
+                url_or_id=args.url,
+                model=model,
+                use_cache=use_cache,
+                auto_overwrite=auto_overwrite,
+                output_dir=output_dir,
+            )
+            if result.success:
+                print(f"Saved to {result.output_path}")
+                sys.exit(0)
+            else:
+                print(f"Error: {result.error}")
+                sys.exit(1)
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def _handle_plan(args: argparse.Namespace) -> None:
+    """Handle the 'plan' subcommand."""
+    if not args.plan_command:
+        print("Usage:")
+        print("  yt-summarizer plan list")
+        print("  yt-summarizer plan run <plan-id>")
+        print("  yt-summarizer plan create --name \"My Plan\"")
+        print("\nRun 'yt-summarizer plan --help' for all options.")
+        sys.exit(1)
+
+    if args.plan_command == "list":
+        _handle_plan_list()
+    elif args.plan_command == "run":
+        _handle_plan_run(args)
+    elif args.plan_command == "create":
+        _handle_plan_create(args)
+
+
+def _handle_plan_list() -> None:
+    """List available research plans."""
+    from .research_plan import list_research_plans
+
+    ensure_initialized()
+    plans = list_research_plans()
+    if not plans:
+        print("No research plans found.")
+    else:
+        print(f"Research plans ({len(plans)}):")
+        for plan_id in plans:
+            print(f"  - {plan_id}")
+    sys.exit(0)
+
+
+def _handle_plan_run(args: argparse.Namespace) -> None:
+    """Run a research plan non-interactively."""
+    from .research_plan import load_research_plan, ResearchPlanError
+
+    if not startup_check(quiet=True):
+        sys.exit(1)
+
+    output_dir = Path(args.output) if args.output else None
+    model = args.model
+    use_cache = not args.no_cache
+
+    try:
+        research_plan = load_research_plan(args.plan_id)
+        research_plan.validate()
+        videos = research_plan.get_video_list()
+
+        if not videos:
+            print(f"Error: no videos in plan '{args.plan_id}'")
             sys.exit(1)
 
-    except Exception as e:
-        print(f"❌ Error: {e}")
+        print(f"Running plan '{research_plan.name}' ({len(videos)} videos)")
+
+        successful = 0
+        failed = 0
+        for i, video_url in enumerate(videos, 1):
+            print(f"\n--- Video {i}/{len(videos)} ---")
+            result = process_single_video(
+                url_or_id=video_url,
+                model=model,
+                use_cache=use_cache,
+                research_plan=research_plan,
+                output_dir=output_dir,
+            )
+            if result.success:
+                successful += 1
+                print(f"OK {result.video_id}: {result.chunk_count} chunks -> {result.output_path}")
+            else:
+                failed += 1
+                print(f"FAIL {result.video_id}: {result.error}")
+
+        print(f"\nDone: {successful} succeeded, {failed} failed")
+        sys.exit(0 if failed == 0 else 1)
+
+    except ResearchPlanError as e:
+        print(f"Error: {e}")
+        sys.exit(1)
+
+
+def _handle_plan_create(args: argparse.Namespace) -> None:
+    """Create a research plan from CLI flags."""
+    from .research_plan import ResearchPlanManager, ResearchPlanError
+    from .io_utils import sanitize_filename
+    import yaml
+
+    ensure_initialized()
+
+    plan_id = sanitize_filename(args.name.lower().replace(" ", "_"))
+    manager = ResearchPlanManager()
+
+    video_urls = []
+    video_list_file = None
+
+    if args.url:
+        video_urls = args.url
+    if args.videos:
+        video_list_file = str(args.videos)
+
+    plan_data = {
+        "research_plan": {
+            "name": args.name,
+            "description": args.description or "Research plan for focused content extraction",
+        },
+        "videos": {
+            "urls": video_urls,
+            "list_file": video_list_file,
+        },
+        "prompts": {
+            "chunk_prompt": (
+                "You are analyzing YouTube video transcripts for focused content extraction.\n"
+                "Extract and summarize only the relevant content from this transcript chunk:\n\n"
+                "{chunk}\n\n"
+                "Focus on the specific topics and information relevant to the research plan."
+            ),
+            "executive_prompt": (
+                "Create a comprehensive summary by combining these extracted content sections:\n\n"
+                "{bullet_summaries}\n\n"
+                "Provide a clear, well-structured summary that captures the key information and themes."
+            ),
+            "corpus_chunk_prompt": (
+                "You are analyzing a collection of research summaries from multiple videos.\n"
+                "Identify patterns, themes, and insights from this content:\n\n"
+                "{chunk}\n\n"
+                "Focus on connections and recurring themes across the research corpus."
+            ),
+            "corpus_executive_prompt": (
+                "Create a comprehensive analysis of the research corpus by synthesizing these insights:\n\n"
+                "{bullet_summaries}\n\n"
+                "Organize findings by themes, highlight key patterns, and provide actionable insights."
+            ),
+        },
+        "output": {
+            "video_summaries_dir": args.output_dir or "data/videos/",
+            "corpus_dir": "data/corpus/",
+            "video_filename_pattern": "{title}_{video_id}.md",
+            "corpus_filename": "{research_plan_name}.md",
+            "corpus_summary_filename": "{research_plan_name}_summary.md",
+        },
+    }
+
+    try:
+        plan_path = manager._get_plan_path(plan_id)
+        if plan_path.exists():
+            print(f"Error: plan '{plan_id}' already exists")
+            sys.exit(1)
+
+        with open(plan_path, "w", encoding="utf-8") as f:
+            yaml.dump(plan_data, f, default_flow_style=False, indent=2, allow_unicode=True)
+
+        print(f"Created research plan: {plan_path}")
+        sys.exit(0)
+
+    except ResearchPlanError as e:
+        print(f"Error: {e}")
         sys.exit(1)
 
 
 def main() -> None:
-    """Main CLI entry point."""
-    # Default to interactive mode for better UX
-    if len(sys.argv) == 1:
+    """Main CLI entry point with subcommands."""
+    import warnings
+
+    parser = argparse.ArgumentParser(
+        prog="yt-summarizer",
+        description="YouTube video summarizer using local LLMs",
+        epilog=(
+            "examples:\n"
+            "  yt-summarizer                              Interactive TUI\n"
+            "  yt-summarizer summarize <url>              Summarize a single video\n"
+            "  yt-summarizer summarize <url> -o ./out/    Custom output directory\n"
+            "  yt-summarizer summarize -f videos.txt      Batch from file\n"
+            "  yt-summarizer plan list                    List research plans\n"
+            "  yt-summarizer plan run <plan-id>           Run a research plan"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    subparsers = parser.add_subparsers(dest="command")
+
+    # summarize subcommand
+    sp = subparsers.add_parser(
+        "summarize",
+        help="Summarize YouTube videos",
+        epilog=(
+            "examples:\n"
+            "  yt-summarizer summarize https://youtube.com/watch?v=...\n"
+            "  yt-summarizer summarize dQw4w9WgXcQ -o ./summaries/\n"
+            "  yt-summarizer summarize -f videos.txt -m llama3.2\n"
+            "  yt-summarizer summarize <url> -f more.txt --overwrite"
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    sp.add_argument("url", nargs="?", help="YouTube URL or video ID")
+    sp.add_argument("-f", "--file", type=Path, help="Text file with video URLs (one per line)")
+    sp.add_argument("-o", "--output", type=Path, help="Output directory for summaries")
+    sp.add_argument("-m", "--model", default=None, help="Ollama model name")
+    sp.add_argument("--no-cache", action="store_true", help="Disable transcript cache")
+    sp.add_argument("--overwrite", action="store_true", help="Overwrite existing summary files")
+
+    # plan subcommand
+    pp = subparsers.add_parser(
+        "plan",
+        help="Research plan operations",
+        epilog=(
+            "examples:\n"
+            "  yt-summarizer plan list\n"
+            "  yt-summarizer plan run my_plan\n"
+            "  yt-summarizer plan run my_plan -o ./out/\n"
+            "  yt-summarizer plan create --name \"AI Research\" --url https://..."
+        ),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    plan_sub = pp.add_subparsers(dest="plan_command")
+
+    pr = plan_sub.add_parser("run", help="Run a research plan")
+    pr.add_argument("plan_id", help="Research plan ID (use 'plan list' to see available)")
+    pr.add_argument("-o", "--output", type=Path, help="Override output directory")
+    pr.add_argument("-m", "--model", default=None, help="Ollama model name")
+    pr.add_argument("--no-cache", action="store_true", help="Disable transcript cache")
+
+    pc = plan_sub.add_parser("create", help="Create a research plan")
+    pc.add_argument("--name", required=True, help="Plan name")
+    pc.add_argument("--description", default="", help="Plan description")
+    pc.add_argument("--videos", type=Path, help="Text file with video URLs")
+    pc.add_argument("--url", action="append", help="Video URL (can be repeated)")
+    pc.add_argument("--output-dir", help="Directory for video summaries")
+
+    plan_sub.add_parser("list", help="List available research plans")
+
+    args = parser.parse_args()
+
+    if not args.command:
         interactive_main()
-    else:
-        legacy_main()
+        return
+
+    # Suppress yaspin TTY warnings in non-interactive mode
+    warnings.filterwarnings("ignore", message="color, on_color and attrs are not supported")
+
+    if args.command == "summarize":
+        _handle_summarize(args)
+    elif args.command == "plan":
+        _handle_plan(args)
 
 
 if __name__ == "__main__":

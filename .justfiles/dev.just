@@ -8,32 +8,32 @@ default:
 # Run interactive CLI
 [no-cd]
 run *ARGS:
-    poetry run yt-summarizer {{ARGS}}
+    uv run yt-summarizer {{ARGS}}
 
 # Run with specific video URL
 [no-cd]
 video URL:
-    poetry run yt-summarizer --interactive <<< $'1\n2\n{{URL}}\n'
+    uv run yt-summarizer --interactive <<< $'1\n2\n{{URL}}\n'
 
 # Run with video list file
 [no-cd]
 batch FILE:
-    poetry run yt-summarizer {{FILE}}
+    uv run yt-summarizer {{FILE}}
 
 # Run with custom model
 [no-cd]
 model MODEL *ARGS:
-    OLLAMA_MODEL={{MODEL}} poetry run yt-summarizer {{ARGS}}
+    OLLAMA_MODEL={{MODEL}} uv run yt-summarizer {{ARGS}}
 
 # Start Python REPL with project imports
 [no-cd]
 repl:
-    poetry run python -c "from yt_summarizer import *; import code; code.interact(local=locals())"
+    uv run python -c "from yt_summarizer import *; import code; code.interact(local=locals())"
 
 # Watch for changes and run tests (requires pytest-watch)
 [no-cd]
 watch:
-    poetry run ptw --clear -- -v
+    uv run ptw --clear -- -v
 
 # Show Ollama status and available models
 [no-cd]

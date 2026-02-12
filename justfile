@@ -14,7 +14,7 @@ mod dev '.justfiles/dev.just'
 [doc('Testing (pytest, coverage)')]
 mod test '.justfiles/test.just'
 
-[doc('Installation (poetry, pipx)')]
+[doc('Installation (uv, pipx)')]
 mod install '.justfiles/install.just'
 
 [doc('Code quality (lint, format, type-check)')]
@@ -29,19 +29,18 @@ default:
 
 # Run interactive CLI
 run *ARGS:
-    poetry run yt-summarizer {{ARGS}}
+    uv run yt-summarizer {{ARGS}}
 
 # Quick start: install deps and run
 start: deps run
 
 # Install/update dependencies
 deps:
-    poetry install
+    uv sync
 
 # Update dependencies to latest versions
 update:
-    poetry update
-    poetry lock
+    uv lock --upgrade
 
 # Clean build artifacts and caches
 clean:

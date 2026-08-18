@@ -1,10 +1,15 @@
-# yt_summarizer
+<p align="center">
+  <img src="docs/assets/hero.jpg" width="880" alt="YouTube lecture on the left, local yt-summarizer terminal writing a markdown summary on the right">
+</p>
+
+# YouTube Summarizer
 
 **YouTube transcripts in. Local summaries out. No API key.**
 
-Pulls captions (manual first, auto if that is all there is), chunks
-them, and asks [Ollama](https://ollama.com) for a summary. TUI if you
-want a menu. Plain CLI if you want a pipeline.
+CLI name is `yt-summarizer`. Repo folder is `yt_summarizer`. The product
+is a **YouTube** summarizer: it pulls captions (manual first, auto if
+that is all there is), chunks them, and asks [Ollama](https://ollama.com)
+for a summary. TUI if you want a menu. Plain CLI if you want a pipeline.
 
 ```bash
 uv run yt-summarizer summarize 'https://youtube.com/watch?v=dQw4w9WgXcQ'
